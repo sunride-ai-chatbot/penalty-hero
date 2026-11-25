@@ -17,9 +17,9 @@ const pickClub=async(p,country,league,club)=>{await p.click(`.tile[data-country=
 const state=p=>p.evaluate(()=>{const a=window.__ph&&window.__ph.arena,panel=document.querySelector('#panel');return {screen:document.querySelector('#app').dataset.screen,end:panel&&!panel.hidden?panel.innerText:null,kick:!!(a&&a._kick),dive:!!(a&&a._dive),
   who:document.querySelector('#who')?.innerText||'',scores:[...document.querySelectorAll('.hud-row')].map(r=>r.dataset.side+r.querySelector('.score').textContent+':'+[...r.querySelectorAll('.marks i')].map(i=>i.className==='in'?'1':i.className==='no'?'0':'-').join('')).sort().join(' ')}});
 /* play a duel through the test hooks until the result panel shows; returns what was seen */
-async function playOut(pages,limitMs=240000){const seen=pages.map(()=>({takers:[],roles:new Set()}));const t0=Date.now();let n=0;
+async function playOut(pages,limitMs=240000){const seen=pages.map(()=>({takers:[],roles:new Set(),party:false}));const t0=Date.now();let n=0;
   for(;;){if(Date.now()-t0>limitMs)throw new Error('the duel did not finish');let ended=0;
-    for(const [i,p] of pages.entries()){const s=await state(p);if(s.end){ended++;continue}
+    for(const [i,p] of pages.entries()){if(!seen[i].party)seen[i].party=await p.evaluate(()=>!!document.querySelector('[data-celebrating]'));const s=await state(p);if(s.end){ended++;continue}
       if(s.kick||s.dive){const taker=s.who.split('\n').find(l=>l.includes('בועט:'))||'';if(seen[i].takers.at(-1)!==taker)seen[i].takers.push(taker);seen[i].roles.add(s.kick?'kick':'keep');n++;
         await p.evaluate(([k,n])=>{const a=window.__ph.arena;if(k)a._kick([2.7,-2.6,0.3,3.0,-1.5,2.2][n%6],[0.5,1.8,1.1,0.7,2.0,1.3][n%6],[0.73,0.75,0.71,0.74,0.8,0.72][n%6]);else a._dive(['L','DR','UL','C','R','D'][n%6])},[s.kick,n])}}
     if(ended===pages.length)break;await pages[0].waitForTimeout(60)}

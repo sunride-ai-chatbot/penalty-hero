@@ -45,7 +45,7 @@ export async function runDuel({arena,audio,sides,me,first,net=null,hud,signal,ti
       try{navigator.vibrate&&navigator.vibrate(word.good?[18,40,18]:28)}catch(e){}};
     await arena.play(result,{onContact:()=>audio?.kick(result.power),onResult:settle,signal,decisive:ends});settle();
     if(ends&&!signal?.aborted)await arena.replay(result,{signal});
-    if(ends&&result.how==='goal'&&!signal?.aborted)await arena.celebrate({signal});
+    if(ends&&!signal?.aborted)await arena.celebrate({signal,goal:result.how==='goal'});
     hud.last&&hud.last({turn,result,iKick});
     await sleep(duel.winner?500:700,signal);
   }

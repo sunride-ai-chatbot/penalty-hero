@@ -126,10 +126,10 @@ export function createArena(host,{debug=false,audio=null,force2d=false}={}){
       host.addEventListener('pointerdown',skip,true);host.classList.add('replaying');replayEl.hidden=false;
       try{stage.replay(result,end)}catch(e){console.error(e);end()}})},
     /** The scorer's team runs in and hugs after the deciding goal. A tap skips it; never longer than 9 s. Resolves when it is over (at once without the 3D picture). */
-    celebrate({signal}={}){return new Promise(resolve=>{if(disposed||signal?.aborted||!stage||typeof stage.celebrate!=='function')return resolve();let done=false;
-      const end=()=>{if(done)return;done=true;clearTimeout(t);signal?.removeEventListener('abort',end);host.removeEventListener('pointerdown',skip,true);try{stage.skipCelebration&&stage.skipCelebration()}catch(e){}resolve()};
+    celebrate({signal,goal=true}={}){return new Promise(resolve=>{if(disposed||signal?.aborted||!stage||typeof stage.celebrate!=='function')return resolve();let done=false;
+      const end=()=>{if(done)return;done=true;clearTimeout(t);signal?.removeEventListener('abort',end);host.removeEventListener('pointerdown',skip,true);try{stage.skipCelebration&&stage.skipCelebration()}catch(e){}host.removeAttribute('data-celebrating');resolve()};
       const skip=e=>{e.preventDefault();e.stopPropagation();end()};const t=setTimeout(end,9000);signal?.addEventListener('abort',end);host.addEventListener('pointerdown',skip,true);
-      try{stage.celebrate(end)}catch(e){console.error(e);end()}})},
+      host.setAttribute('data-celebrating','1');try{stage.celebrate(end,{goal})}catch(e){console.error(e);end()}})},
     cheer(v){try{stage?.cheer(v)}catch(e){}},pause(){try{stage?.pause()}catch(e){}},resume(){try{stage?.resume()}catch(e){}},
     dispose(){if(disposed)return;disposed=true;host.classList.remove('pressure','replaying');clearTimeout(flashT);clearTimeout(roleT);host.classList.remove('i-kick','i-keep');clearInterval(debugT);try{api._cancel&&api._cancel()}catch(e){}host.removeEventListener('contextmenu',stop);host.removeEventListener('selectstart',stop);host.removeEventListener('dragstart',stop);
       try{stage?.dispose()}catch(e){}stage=null;host.innerHTML='';host.classList.remove('game-arena')}};

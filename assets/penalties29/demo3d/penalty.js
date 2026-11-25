@@ -20,7 +20,7 @@ export function createPenaltyView(host,opts={}){
   const wrap=document.createElement('div');wrap.className='pg-3d';host.prepend(wrap);
   let renderer,world,ball,observer,raf=0,disposed=false,keeper=null,taker=null,clock=0,last=0,paused=false;
   const scene=new T.Scene(),camera=new T.PerspectiveCamera(50,1,.1,320),ray=new T.Raycaster(),v3=new T.Vector3(),v2=new T.Vector2();
-  let film=null,kf=null,pf=null,celeb=null,shot=null,act=null,netT=-1,netZ=0,netAmp=1,netY=1.2,caughtAt=null,fps={n:0,t:0,value:0};
+  let film=null,kf=null,pf=null,celeb=null,lastO={},shot=null,act=null,netT=-1,netZ=0,netAmp=1,netY=1.2,caughtAt=null,fps={n:0,t:0,value:0};
   // effects: slow motion on a goal, a freeze on contact with the frame, camera shake, a push in; and the replay camera
   const fx={scale:1,slow:null,stop:0,shake:0,punch:0,live:false},camBase={pos:new T.Vector3(),quat:new T.Quaternion(),fov:50},tq=new T.Quaternion(),te=new T.Euler();
   let rep=false,repDone=null,lefty=false,repPhase='run';
@@ -48,7 +48,7 @@ export function createPenaltyView(host,opts={}){
     keeper=makeRosterPlayer(scene,{slot:'GK',side:1,number:o.gkNumber||1,kit:o.gkKit||'#f2b233',trim:'#10151d',pid:'k',team:'k',name:o.gkName||''},0);
     taker=makeRosterPlayer(scene,{slot:'FW',side:0,number:o.number??'',kit:o.kit||'#c6f24e',trim:o.trim||'#10151d',pid:'t',team:'t',name:o.name||''},1);
     try{world.setMood(o.mood)}catch(e){}lefty=!!o.left;if(film)film.flip=lefty;   // a left-footed taker: the same footage mirrored, the camera mirrored with it (the print on the shirt stays upright)
-    film?.identify(o);kf?.identify(o.gkKit,o.gkTrim||'#10151d');pf?.identify(o.kit||'#fbd21b',o.trim||'#204a9e');try{world.crowd.dress(o.kit||'#c6f24e',o.oppKit||'#e9edf2')}catch(e){}
+    film?.identify(o);kf?.identify(o.gkKit,o.gkTrim||'#10151d');lastO=o;try{world.crowd.dress(o.kit||'#c6f24e',o.oppKit||'#e9edf2')}catch(e){}
   }
   function saveCamera(){camBase.pos.copy(camera.position);camBase.quat.copy(camera.quaternion);camBase.fov=camera.fov}
   function frameCamera(){const w=wrap.clientWidth||1,h=wrap.clientHeight||1;camera.aspect=w/h;
@@ -208,7 +208,8 @@ export function createPenaltyView(host,opts={}){
     reset(o){if(disposed)throw new Error('disposed');if(rep)endReplay(true);if(celeb){celeb=null;pf?.hide()}resetKick();fx.slow=null;fx.scale=1;fx.stop=0;fx.shake=fx.punch=0;lefty=false;if(film)film.flip=false;
       cast(o||opts);frameCamera();draw()},
     /** The winners' celebration after the deciding goal: four players run in and hug in the box, in the scorer's kit. skipCelebration() ends it early. */
-    celebrate(done){if(disposed||!pf?.ready)return done&&done();celeb={start:clock,done,over:false};film?.hide();taker.group.visible=false;api.cheer(1);bump(.05,1.2)},
+    celebrate(done,{goal=true}={}){if(disposed||!pf?.ready)return done&&done();   // the winners: the scorer's team after a goal, the other team after a miss or a save
+      pf.identify(goal?(lastO.kit||'#fbd21b'):(lastO.oppKit||'#e9edf2'),goal?(lastO.trim||'#204a9e'):'#1d2b53');celeb={start:clock,done,over:false};film?.hide();taker.group.visible=false;api.cheer(1);bump(.05,1.2)},
     skipCelebration(){if(celeb&&!celeb.over){celeb.over=true;const d=celeb.done;celeb=null;pf?.hide();d&&d()}},
     cheer(v){if(world&&world.crowd)world.crowd.cheer=v==null?1:v},
     /** stop drawing (another screen is on top) / start again without a jump in time */

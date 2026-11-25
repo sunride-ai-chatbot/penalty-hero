@@ -124,9 +124,9 @@ export function createPenaltyView(host,opts={}){
     if(kf?.ready&&!document.documentElement.hasAttribute('data-keeper3d')){keeperPicture();keeper.group.visible=false;if(keeper.shadow)keeper.shadow.visible=false}else kf?.hide();
     posePlayer(taker,{x:R.x,z:R.z,angle:Math.PI/2,speed:R.speed,kick:0,dive:0,celebrate:0,keeper:false,phase:R.speed?R.phase:undefined},clock);
     const filmed=!!film?.loaded,replaying=rep;
-    if(celeb){const t=clock-celeb.start,RUN_FPS=14,HUG_FPS=12,nr=pf.count('run'),runT=nr/RUN_FPS;
-      if(t<runT)pf.pose({clip:'run',f:t*RUN_FPS,x:SPOT+2.2,z:-.1,side:-1});else pf.pose({clip:'hug',f:Math.min(pf.count('hug')-1,(t-runT)*HUG_FPS),x:SPOT+2.2,z:-.1,side:-1});
-      if(t>runT+3.4&&!celeb.over){celeb.over=true;const d=celeb.done;celeb=null;pf.hide();d&&d()}}
+    if(celeb){const t=clock-celeb.start,PARTY_FPS=10,n=pf.count('party');   // one ten-second film of the whole squad hugging, in plain white that the club's colours are painted over
+      pf.pose({clip:'party',f:Math.min(n-1,t*PARTY_FPS),x:SPOT+.4,z:-.1,side:-1});
+      if(t>n/PARTY_FPS+.4&&!celeb.over){celeb.over=true;const d=celeb.done;celeb=null;pf.hide();d&&d()}}
     const afterContact=!!shot&&shot.contactAt!==null;
     if(replaying&&film&&afterContact)film.hide();
     if(celeb)film?.hide();else if(filmed&&(!replaying||!afterContact)){film.face=replaying?camera.position:null;const reacting=shot&&shot.reactAt!==null;film.pose(clipTime(),R.x+.28*clamp((R.x-RUN.x)/(SPOT-.28-RUN.x)),0,reacting?shot.reaction:null,reacting?clock-shot.reactAt:0)}
@@ -227,7 +227,7 @@ export function createPenaltyView(host,opts={}){
     scene.traverse(o=>{if(o.isDirectionalLight&&o.castShadow){o.shadow.mapSize.set(1024,1024);Object.assign(o.shadow.camera,{left:-14,right:14,top:14,bottom:-14});o.target.position.set(45,0,0);o.shadow.camera.updateProjectionMatrix()}});
     ball=makeBall(scene);
     renderer.domElement.addEventListener('webglcontextlost',e=>{e.preventDefault();if(!disposed)fail(new Error('context lost'))});
-    film=filmedTaker(scene);kf=keeperFilm(scene);pf=keeperFilm(scene,{base:'party',grounded:true});
+    film=filmedTaker(scene);kf=keeperFilm(scene);pf=keeperFilm(scene,{base:'party',grounded:true,white:true});
     api.ready=film.ready.then(()=>{if(disposed)return false;film.warm(renderer);draw();return true},e=>{console.error('Photographed taker unavailable',e);return false});
     api.reset(opts);renderer.domElement.setAttribute('aria-label','מגרש פנדלים תלת־ממדי');
     observer=new ResizeObserver(()=>{try{resize()}catch(e){fail(e)}});observer.observe(wrap);

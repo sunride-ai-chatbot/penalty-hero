@@ -3,12 +3,25 @@ import * as T from './vendor/three.js';
 // and packed as sprite sheets. The game's own keeper logic (where he goes, when, how far) still drives him: the sprite is only the picture.
 // Lateral position is taken from the game (z), not from the footage, so the glove lands on the aimed point whatever the clip's own travel was.
 // The dive footage goes to the picture's left; the other side is the same footage mirrored. Shirt and shorts are repainted with the club's kit.
-export function keeperFilm(scene,{base='keeper',grounded=false}={}){
+export function keeperFilm(scene,{base='keeper',grounded=false,white=false}={}){
  const group=new T.Group();group.rotation.y=-Math.PI/2;group.visible=false;scene.add(group);
  const shirt=new T.Color(),shorts=new T.Color();
  const material=new T.MeshBasicMaterial({transparent:true,alphaTest:.12,toneMapped:false,side:T.DoubleSide,premultipliedAlpha:true});
  const actor=new T.Mesh(new T.PlaneGeometry(1,1),material);group.add(actor);
+  material.customProgramCacheKey=()=>white?'film-white':'film-kit';
  material.onBeforeCompile=shader=>{shader.uniforms.shirtColor={value:shirt};shader.uniforms.shortsColor={value:shorts};shader.uniforms.kitRef={value:new T.Vector2(.94,.80)};
+  if(white){shader.vertexShader='varying vec2 vLoc;\n'+shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n vLoc=uv;');
+   shader.fragmentShader='uniform vec3 shirtColor;uniform vec3 shortsColor;varying vec2 vLoc;\n'+shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
+    diffuseColor.rgb/=max(diffuseColor.a,.004);
+    vec3 px=pow(max(diffuseColor.rgb,vec3(0.)),vec3(1./2.2));float mx=max(px.r,max(px.g,px.b)),mn=min(px.r,min(px.g,px.b));float sat=mx>0.?(mx-mn)/mx:0.;
+    float cloth=(1.-smoothstep(.10,.20,sat))*smoothstep(.42,.60,mx);
+    float f=1.-vLoc.y;
+    float tShirt=smoothstep(.10,.13,f)*(1.-smoothstep(.49,.53,f)),tShorts=smoothstep(.49,.53,f)*(1.-smoothstep(.72,.76,f)),tSocks=smoothstep(.72,.76,f);
+    vec3 shade=diffuseColor.rgb/.86;
+    vec3 tint=shirtColor*(tShirt+tSocks)+shortsColor*tShorts;float amt=cloth*clamp(tShirt+tShorts+tSocks,0.,1.);
+    diffuseColor.rgb=mix(diffuseColor.rgb,clamp(tint*shade,0.,1.2),amt);
+    diffuseColor.rgb*=diffuseColor.a;`);return}
+
   shader.fragmentShader='uniform vec3 shirtColor;uniform vec3 shortsColor;uniform vec2 kitRef;\n'+shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
    diffuseColor.rgb/=max(diffuseColor.a,.004);
    vec3 px=pow(max(diffuseColor.rgb,vec3(0.)),vec3(1./2.2));

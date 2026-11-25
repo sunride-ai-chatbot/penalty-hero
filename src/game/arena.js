@@ -51,7 +51,7 @@ export function createArena(host,{debug=false,audio=null,force2d=false}={}){
      * as long as the kick lasts, and a tag over the keeper naming who stands in goal.
      */
     role({iKick,keeperTag}){clearTimeout(roleT);host.classList.toggle('i-kick',!!iKick);host.classList.toggle('i-keep',!iKick);const el=$('.ar-role'),chip=$('.ar-chip');
-      el.innerHTML=iKick?'<b>אתה בועט</b><span>החזק, כוון, שחרר באזור הלבן</span>':'<b>אתה בשער</b><span>גע בשער, גרור את העיגול ושחרר</span>';el.className='ar-role on '+(iKick?'kick':'keep');roleT=setTimeout(()=>{el.className='ar-role '+(iKick?'kick':'keep')},1500);
+      el.innerHTML=iKick?'<b>אתה בועט</b><span>החזק, כוון, שחרר באזור הלבן</span>':'<b>אתה בשער</b><span>גע בשער, גרור את העיגול ושחרר</span>';el.className='ar-role on '+(iKick?'kick':'keep');roleT=setTimeout(()=>{el.className='ar-role '+(iKick?'kick':'keep')},1100);
       chip.textContent=keeperTag||'';chip.className='ar-chip '+(iKick?'them':'me');chip.hidden=!keeperTag;if(stage&&keeperTag){const [px,py]=stage.toScreen(0,2.02);chip.style.transform=`translate(${px.toFixed(1)}px,${py.toFixed(1)}px)`}},
     /** the kick is on its way: the tag over the keeper would only get in the way of the dive */
     roleOff(){$('.ar-chip').hidden=true},

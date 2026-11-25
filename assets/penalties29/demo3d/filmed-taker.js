@@ -45,7 +45,8 @@ export function filmedTaker(scene){
  const label=new T.Mesh(new T.PlaneGeometry(1,1),new T.MeshBasicMaterial({map:ink,transparent:true,depthWrite:false,toneMapped:false}));group.add(label);
  let data=null,pages=[],dead=false,identity={},shown={clip:null,frame:-1};const reactions={};const waits=[],later=[];
  for(const [name,track] of Object.entries({goal:goalTrack,miss:missTrack})){
-  const rows=Math.ceil(track.length/12);reactions[name]={texture:null,track,rows,ready:false};
+  const near=i=>track[Math.max(0,Math.min(track.length-1,i))],smooth=track.map((_,i)=>[0,1].map(k=>(near(i-2)[k]+2*near(i-1)[k]+3*near(i)[k]+2*near(i+1)[k]+near(i+2)[k])/9));
+  const rows=Math.ceil(track.length/12);reactions[name]={texture:null,track,smooth,rows,ready:false};
   // the two reactions are not needed until a kick has ended: they load behind the first kick and never hold it up.
   // (.webp: the source PNG atlases re-encoded at the same size — 0.8 MB each instead of 7 MB)
   later.push(new T.TextureLoader().loadAsync(new URL('../taker/'+name+'.webp',import.meta.url).href).then(texture=>{if(dead){texture.dispose();return}
@@ -55,9 +56,10 @@ export function filmedTaker(scene){
   identify(o){identity=o||{};shirtColor.set(identity.kit||'#ead03f');shortsColor.set(identity.trim||'#204987');
    const c=canvas.getContext('2d');c.clearRect(0,0,384,320);const light=shirtColor.getHSL({}).l>.36;c.fillStyle=light?'#152139':'#fffdf2';c.strokeStyle=light?'rgba(255,255,255,.35)':'rgba(0,0,0,.4)';c.lineJoin='round';
    c.textAlign='center';c.textBaseline='top';c.direction='rtl';const name=String(identity.name||'');const font=s=>'800 '+s+'px "Heebo","Arial Hebrew",Arial,sans-serif';
-   let size=74;do{c.font=font(size);if(c.measureText(name).width<=366)break;size-=2}while(size>30);
-   c.lineWidth=5;c.strokeText(name,192,8+(74-size)*.5,372);c.fillText(name,192,8+(74-size)*.5,372);
-   c.font='900 214px "Heebo",Arial,sans-serif';c.direction='ltr';c.lineWidth=8;const no=String(identity.number??'');c.strokeText(no,192,98,360);c.fillText(no,192,98,360);ink.needsUpdate=true},
+   // the canvas is the back panel of the shirt: the top eighth is the collar and stays empty, the name sits under it, the number fills the rest
+   let size=62;do{c.font=font(size);if(c.measureText(name).width<=330)break;size-=2}while(size>28);
+   c.lineWidth=5;c.strokeText(name,192,44+(62-size)*.5,336);c.fillText(name,192,44+(62-size)*.5,336);
+   c.font='900 196px "Heebo",Arial,sans-serif';c.direction='ltr';c.lineWidth=8;const no=String(identity.number??'');c.strokeText(no,192,112,330);c.fillText(no,192,112,330);ink.needsUpdate=true},
   /** time: seconds into the kick clip. reaction: null | 'goal' | 'miss', elapsed seconds into it. x: world x of the sprite plane. */
   pose(time,x,z,reaction,elapsed){if(dead)return;
    const take=reactions[reaction];if(take?.ready&&data){group.visible=true;const h=3.15,w=h*208/376,i=Math.min(take.track.length-1,Math.max(0,Math.floor(elapsed*16)));
@@ -65,7 +67,7 @@ export function filmedTaker(scene){
     const kw=data.worldHeight*data.width/data.height,last=data.labels[data.frames-1];   // he reacts where the strike left him: same spot, no jump
     const zc=-(data.contactX-.5)*kw+(last.x-.5)*kw-(take.track[0][0]/208-.5)*w;
     group.position.set(x,h*(.872-.5),zc);castShadow(x,zc,w,h,-h*.128);
-    const [sx,sy]=take.track[i];label.position.set((sx/208-.5)*w,(.5-sy/376)*h,.008);label.scale.set(.54,.40,1);label.rotation.z=0;shown={clip:reaction,frame:i};return}
+    const [sx,sy]=take.smooth[i];label.position.set((sx/208-.5)*w,(.5-sy/376)*h-.11,.008);label.scale.set(.46,.37,1);label.rotation.z=0;/* the tracked point is the top of the back: the panel hangs below it */shown={clip:reaction,frame:i};return}
    if(!data)return;group.visible=true;
    const i=Math.min(data.frames-1,Math.max(0,Math.floor(time*data.fps))),p=pages.findLast(p=>p.start<=i),f=i-p.start;
    p.texture.offset.set(f%p.cols/p.cols,1-(Math.floor(f/p.cols)+1)/p.rows);material.map=p.texture;shadowMaterial.map=p.texture;refs.value.set(.96,.70);fringe.value.z=0;
@@ -76,6 +78,8 @@ export function filmedTaker(scene){
  waits.push(fetch(new URL('../motions/clips.json',import.meta.url)).then(r=>{if(!r.ok)throw Error('motion '+r.status);return r.json()}).then(async all=>{
   const d=all.highL;if(!d||d.floors.length!==d.frames||d.labels.length!==d.frames||d.pages.reduce((t,p)=>t+p.frames,0)!==d.frames)throw Error('clips.json does not match its atlas');
   const loaded=await Promise.all(d.pages.map(async p=>{const filename=p.url.split('/').pop();const texture=await new T.TextureLoader().loadAsync(new URL('../motions/'+filename,import.meta.url).href);texture.colorSpace=T.SRGBColorSpace;texture.premultiplyAlpha=true;texture.repeat.set(1/p.cols,1/p.rows);texture.generateMipmaps=false;texture.minFilter=texture.magFilter=T.LinearFilter;return {...p,texture}}));
+  const raw=d.labels,at=i=>raw[Math.max(0,Math.min(raw.length-1,i))],avg=(i,k,w)=>w.reduce((t,wt,j)=>t+wt*at(i+j-(w.length>>1))[k],0)/w.reduce((t,x)=>t+x,0);
+  d.labels=raw.map((q,i)=>({x:avg(i,'x',[1,2,1]),y:avg(i,'y',[1,2,1]),width:avg(i,'width',[1,2,3,2,1]),height:avg(i,'height',[1,2,3,2,1]),angle:avg(i,'angle',[1,2,3,2,1])}));
   if(dead){loaded.forEach(p=>p.texture.dispose());return}pages=loaded;data=d;api.contact=d.contact;api.duration=d.frames/d.fps;api.identify(identity)}));
  api.ready=Promise.all(waits).then(()=>true);api.ready.catch(()=>{});Promise.all(later).catch(e=>console.warn('reaction plates unavailable: the taker holds his last frame',e));
  /** upload every page to the GPU now, so the first kick does not stall on a 4-megapixel texture */

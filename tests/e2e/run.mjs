@@ -6,9 +6,11 @@ const exe=process.env.CHROME||['/usr/bin/google-chrome','/usr/bin/chromium','/us
 const srv=createServer().listen(0);await new Promise(r=>srv.once('listening',r));const BASE=`http://localhost:${srv.address().port}/`;
 const browser=await chromium.launch({executablePath:exe,args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist','--autoplay-policy=no-user-gesture-required']});
 const problems=[];let passed=0;
-async function page(ctx,{local=false}={}){const p=await ctx.newPage();p.on('console',m=>{if(m.type()==='error'&&!/GPU stall|favicon/.test(m.text()))problems.push('console: '+m.text())});p.on('pageerror',e=>problems.push('pageerror: '+e.message));
+async function page(ctx,{local=false,none=false}={}){const p=await ctx.newPage();p.on('console',m=>{if(m.type()==='error'&&!/GPU stall|favicon/.test(m.text()))problems.push('console: '+m.text())});p.on('pageerror',e=>problems.push('pageerror: '+e.message));
   p.on('response',r=>{if(r.status()>=400&&!/favicon/.test(r.url()))problems.push(r.status()+' '+r.url())});
-  if(local)await p.route('**/config/network.json',r=>r.fulfill({contentType:'application/json',body:'{"transport":"local"}'}));return p}
+  if(local||none)await p.route('**/config/network.json',r=>r.fulfill({contentType:'application/json',body:local?'{"transport":"local"}':'{"transport":"none"}'}));
+  else await p.route('**/config/network.json',r=>r.fulfill({contentType:'application/json',body:'{"transport":"none"}'}));   // tests never touch the live service
+  return p}
 const phone=()=>browser.newContext({viewport:{width:390,height:780},hasTouch:true,isMobile:true,locale:'he-IL'});
 const step=async(name,fn)=>{const t=Date.now();try{await fn();passed++;console.log('ok   '+name+' ('+((Date.now()-t)/1000).toFixed(1)+'s)')}catch(e){problems.push(name+': '+e.message);console.log('FAIL '+name+'\n     '+e.message)}};
 const pickClub=async(p,country,league,club)=>{await p.click(`.tile[data-country="${country}"]`);if(league)await p.click(`.tile[data-league="${league}"]`).catch(()=>{});await p.click(`.tile[data-club="${club}"]`)};

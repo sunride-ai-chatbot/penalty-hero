@@ -9,7 +9,7 @@ for(let i=0;i<8&&shots<6;i++){await p.waitForFunction(()=>window.__ph.arena._kic
   if(kick&&kicks<1||!kick&&dives<1){const box=await p.locator('#arena').boundingBox();
     if(kick){await p.evaluate(([x,y])=>{const el=document.querySelector('#arena');el.dispatchEvent(new PointerEvent('pointerdown',{pointerId:3,pointerType:'touch',isPrimary:true,clientX:x,clientY:y,bubbles:true,cancelable:true}))},[box.x+290,box.y+250]);await p.waitForTimeout(260);await p.screenshot({path:`${out}/kick-aim.png`});
       await p.evaluate(()=>window.__ph.arena.stage.pause());await p.evaluate(()=>window.__ph.arena._kick(2.9,1.9,.74))}
-    else{await p.evaluate(([x,y])=>{const el=document.querySelector('#arena'),ev=(t,x,y)=>el.dispatchEvent(new PointerEvent(t,{pointerId:3,pointerType:'touch',isPrimary:true,clientX:x,clientY:y,bubbles:true,cancelable:true}));ev('pointerdown',x,y);ev('pointermove',x-70,y-50)},[box.x+200,box.y+380]);await p.waitForTimeout(200);await p.screenshot({path:`${out}/dive-aim.png`});
+    else{await p.evaluate(([x,y])=>{const el=document.querySelector('#arena'),ev=(t,x,y)=>el.dispatchEvent(new PointerEvent(t,{pointerId:3,pointerType:'touch',isPrimary:true,clientX:x,clientY:y,bubbles:true,cancelable:true}));ev('pointerdown',x,y);ev('pointermove',x+95,y-10)},[box.x+200,box.y+250]);await p.waitForTimeout(200);await p.screenshot({path:`${out}/dive-aim.png`});
       await p.evaluate(()=>window.__ph.arena.stage.pause());await p.evaluate(()=>window.__ph.arena._dive('UL'))}
     await p.waitForFunction(()=>window.__ph.arena.stage.debug().keeper!=='wait',null,{timeout:20000});const tag=kick?'kick':'dive';
     await p.evaluate(()=>window.__ph.arena.stage.step(1.25+.45));await p.waitForTimeout(100);await p.screenshot({path:`${out}/${tag}-fly.png`});

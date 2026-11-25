@@ -1,9 +1,10 @@
 // The arena: the picture of the kick plus everything the finger does on it.
 //   kicking  press and hold in the arena, drag the sight over the goal, release: one kick. The bar under the goal is
 //            accuracy and power at once — release while the marker is in the white window.
-//   keeping  pull the finger toward the corner to dive to, release to commit. No arrows on the screen.
+//   keeping  touch the goal and drag: a ring follows the finger, a dotted line runs from the keeper to it; release to
+//            commit to that part of the goal. No arrows and no icons on the screen.
 // Pointer Events with capture; pointercancel never kicks; every listener and timer dies with the AbortSignal.
-import {clamp,meterPosition,timingWindow,swayOf,swayAt,frameOf,dirFromPull,ZONE,DIRS,aiKick,makeRng} from '../core/rules.js';
+import {clamp,meterPosition,timingWindow,swayOf,swayAt,frameOf,zoneOf,ZONE,DIRS,aiKick,makeRng} from '../core/rules.js';
 const TOUCH_LIFT=56;                 // px: the sight rides above a finger so it is never hidden under it
 const DIR_NAME={UL:'למעלה שמאלה',U:'למעלה',UR:'למעלה ימינה',L:'שמאלה',C:'להישאר באמצע',R:'ימינה',DL:'למטה שמאלה',D:'למטה',DR:'למטה ימינה'};
 class Aborted extends Error{constructor(){super('aborted');this.name='AbortError'}}
@@ -50,7 +51,7 @@ export function createArena(host,{debug=false,audio=null,force2d=false}={}){
      * as long as the kick lasts, and a tag over the keeper naming who stands in goal.
      */
     role({iKick,keeperTag}){clearTimeout(roleT);host.classList.toggle('i-kick',!!iKick);host.classList.toggle('i-keep',!iKick);const el=$('.ar-role'),chip=$('.ar-chip');
-      el.innerHTML=iKick?'<b>אתה בועט</b><span>החזק, כוון, שחרר באזור הלבן</span>':'<b>אתה בשער</b><span>משוך לכיוון הזינוק ושחרר</span>';el.className='ar-role on '+(iKick?'kick':'keep');roleT=setTimeout(()=>{el.className='ar-role '+(iKick?'kick':'keep')},1500);
+      el.innerHTML=iKick?'<b>אתה בועט</b><span>החזק, כוון, שחרר באזור הלבן</span>':'<b>אתה בשער</b><span>גע בשער, גרור את העיגול ושחרר</span>';el.className='ar-role on '+(iKick?'kick':'keep');roleT=setTimeout(()=>{el.className='ar-role '+(iKick?'kick':'keep')},1500);
       chip.textContent=keeperTag||'';chip.className='ar-chip '+(iKick?'them':'me');chip.hidden=!keeperTag;if(stage&&keeperTag){const [px,py]=stage.toScreen(0,2.02);chip.style.transform=`translate(${px.toFixed(1)}px,${py.toFixed(1)}px)`}},
     /** the kick is on its way: the tag over the keeper would only get in the way of the dive */
     roleOff(){$('.ar-chip').hidden=true},
@@ -84,21 +85,24 @@ export function createArena(host,{debug=false,audio=null,force2d=false}={}){
     /**
      * The user keeps goal. Resolves {d, auto}: committed on release after a pull; standing in the middle when time runs out.
      */
-    askDive({timeMs=5000,signal}){return ask(signal,({on,finish,loop})=>{let from=null,pointer=null,cur=null;const ck=shownClock();const line=pull.firstElementChild;timer.hidden=false;
-        const show=d=>{if(d===cur)return;cur=d;target.hidden=!d;if(d){place(target,...ZONE[d]);audio?.tap()}try{stage.hint(d)}catch(e){}};
-        const local=e=>{const r=host.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top]};
-        on(host,'pointerdown',e=>{if(pointer!==null||e.button>0||e.target.closest('button'))return;e.preventDefault();pointer=e.pointerId;from={x:e.clientX,y:e.clientY};const [x,y]=local(e);for(const k of ['x1','x2'])line.setAttribute(k,x);for(const k of ['y1','y2'])line.setAttribute(k,y);pull.hidden=false;try{host.setPointerCapture(e.pointerId)}catch(x){}audio?.unlock()});
-        on(host,'pointermove',e=>{if(e.pointerId!==pointer)return;e.preventDefault();const [x,y]=local(e);line.setAttribute('x2',x);line.setAttribute('y2',y);const d=dirFromPull(e.clientX-from.x,e.clientY-from.y);if(d)show(d)});
-        on(host,'pointerup',e=>{if(e.pointerId!==pointer)return;e.preventDefault();pointer=null;pull.hidden=true;if(cur)finish({d:cur,auto:false})});   // a tap without a pull chooses nothing
-        on(host,'pointercancel',e=>{if(e.pointerId===pointer){pointer=null;pull.hidden=true}});
-        on(host,'keydown',e=>{const k={ArrowLeft:'L',ArrowRight:'R',ArrowUp:'U',ArrowDown:'D'}[e.key];if(k){e.preventDefault();const col=k==='L'||k==='R'?k:(cur||'').replace(/[UD]/,''),row=k==='U'||k==='D'?k:(cur||'').replace(/[LRC]/g,'');show((row+col)||'C')}
-          else if((e.key==='Enter'||e.key===' ')&&!e.repeat){e.preventDefault();finish({d:cur||'C',auto:false})}});
+    askDive({timeMs=5000,signal}){return ask(signal,({on,finish,loop})=>{let pointer=null,cur=null,aim=null;const ck=shownClock();const line=pull.firstElementChild;timer.hidden=false;
+        // A ring on the goal follows the finger, with a dotted line from the keeper to it: that is where he will go.
+        const draw=()=>{if(!aim){target.hidden=true;pull.setAttribute('hidden','');return}const [kx,ky]=stage.toScreen(0,.95),[tx,ty]=stage.toScreen(aim.x,aim.y);target.hidden=false;pull.removeAttribute('hidden');   /* an <svg> has no .hidden property */target.style.transform=`translate(${tx.toFixed(1)}px,${ty.toFixed(1)}px)`;
+          line.setAttribute('x1',kx);line.setAttribute('y1',ky);line.setAttribute('x2',tx);line.setAttribute('y2',ty)};
+        const set=(x,y)=>{aim={x:clamp(x,-3.5,3.5),y:clamp(y,.15,2.3)};const d=zoneOf(aim.x,aim.y);if(d!==cur){cur=d;audio?.tap();try{stage.hint(d)}catch(e){}}draw()};
+        const point=e=>{const r=host.getBoundingClientRect();const [x,y]=stage.fromScreen(e.clientX-r.left,e.clientY-r.top-(e.pointerType==='touch'?TOUCH_LIFT:0));set(x,y)};
+        on(host,'pointerdown',e=>{if(pointer!==null||e.button>0||e.target.closest('button'))return;e.preventDefault();pointer=e.pointerId;try{host.setPointerCapture(e.pointerId)}catch(x){}point(e);audio?.unlock()});
+        on(host,'pointermove',e=>{if(e.pointerId!==pointer)return;e.preventDefault();point(e)});
+        on(host,'pointerup',e=>{if(e.pointerId!==pointer)return;e.preventDefault();pointer=null;point(e);finish({d:cur,auto:false})});   // released: committed
+        on(host,'pointercancel',e=>{if(e.pointerId===pointer)pointer=null});                                                        // the system took the touch: nothing is chosen
+        on(host,'keydown',e=>{const a=aim||{x:0,y:1.2};if(e.key==='ArrowLeft')set(a.x-2.6,a.y);else if(e.key==='ArrowRight')set(a.x+2.6,a.y);else if(e.key==='ArrowUp')set(a.x,a.y+.75);else if(e.key==='ArrowDown')set(a.x,a.y-.75);
+          else if((e.key==='Enter'||e.key===' ')&&!e.repeat){e.preventDefault();return finish({d:cur||'C',auto:false})}else return;e.preventDefault()});
         a11y.innerHTML=DIRS.map(d=>`<button type="button" class="sr" data-d="${d}">זינוק ${DIR_NAME[d]}</button>`).join('');
         on(a11y,'click',e=>{const b=e.target.closest('[data-d]');if(b)finish({d:b.dataset.d,auto:false})});
-        loop(()=>{const left=1-ck.tick()/timeMs;timer.firstElementChild.style.transform=`scaleX(${Math.max(0,left).toFixed(3)})`;if(cur)place(target,...ZONE[cur]);if(left<=0)finish({d:cur||'C',auto:true})});
+        loop(()=>{const left=1-ck.tick()/timeMs;timer.firstElementChild.style.transform=`scaleX(${Math.max(0,left).toFixed(3)})`;draw();if(left<=0)finish({d:cur||'C',auto:true})});
         try{host.focus({preventScroll:true})}catch(e){}
         api._dive=d=>finish({d,auto:false});
-        return()=>{target.hidden=pull.hidden=timer.hidden=true;a11y.innerHTML='';api._dive=null;try{pointer!==null&&host.releasePointerCapture(pointer)}catch(e){}}})},
+        return()=>{target.hidden=timer.hidden=true;pull.setAttribute('hidden','');a11y.innerHTML='';api._dive=null;try{pointer!==null&&host.releasePointerCapture(pointer)}catch(e){}}})},
     /** Draw a resolved kick. Resolves when the keeper has landed and the taker reacts; a stuck picture cannot hang the duel. */
     play(result,{onContact,onResult,signal}={}){return new Promise((resolve,reject)=>{if(disposed||signal?.aborted)return reject(new Aborted());let done=false;
       const end=err=>{if(done)return;done=true;clearTimeout(t);signal?.removeEventListener('abort',abort);err?reject(err):resolve()};const abort=()=>end(new Aborted());signal?.addEventListener('abort',abort);

@@ -29,11 +29,11 @@ export async function runDuel({arena,audio,sides,me,first,net=null,hud,signal,ti
     if(net){
       if(iKick){arena.hint('החזק, כוון ושחרר כשהסמן באזור הלבן');const c=await arena.askKick({shotSkill:taker.shot,keeperSkill:keeper.keep,timeMs:timeKick,signal});
         arena.hint('ממתין לשוער…');const x=await net.exchange(turn.k,{x:c.aim.x,y:c.aim.y,m:c.meter},true);kick={aim:{x:x.kick.x,y:x.kick.y},meter:x.kick.m};dive=x.dive;seed=x.seed}
-      else{arena.hint('אתה בשער: משוך לכיוון הזינוק ושחרר');const c=await arena.askDive({timeMs:timeDive,signal});
+      else{arena.hint('אתה בשער: גרור את העיגול למקום הזינוק ושחרר');const c=await arena.askDive({timeMs:timeDive,signal});
         arena.hint('ממתין לבעיטה…');const x=await net.exchange(turn.k,{d:c.d},false);kick={aim:{x:x.kick.x,y:x.kick.y},meter:x.kick.m};dive=x.dive;seed=x.seed}
     }else{seed='cpu:'+Math.floor(local()*2**32).toString(16)+':'+turn.k;
       if(iKick){arena.hint('החזק, כוון ושחרר כשהסמן באזור הלבן');const c=await arena.askKick({shotSkill:taker.shot,keeperSkill:keeper.keep,timeMs:timeKick,signal});kick={aim:c.aim,meter:c.meter};dive=aiDive(keeper.keep,local)}
-      else{arena.hint('אתה בשער: משוך לכיוון הזינוק ושחרר');const c=await arena.askDive({timeMs:timeDive,signal});dive=c.d;const k=aiKick(taker.shot,local);kick={aim:k.aim,meter:k.meter};await sleep(250,signal)}}
+      else{arena.hint('אתה בשער: גרור את העיגול למקום הזינוק ושחרר');const c=await arena.askDive({timeMs:timeDive,signal});dive=c.d;const k=aiKick(taker.shot,local);kick={aim:k.aim,meter:k.meter};await sleep(250,signal)}}
     if(signal?.aborted)throw Object.assign(new Error('aborted'),{name:'AbortError'});
     const result=resolveKick({aim:kick.aim,meter:kick.meter,shotSkill:taker.shot,keeperSkill:keeper.keep,dive,rng:makeRng(String(seed))});
     arena.hint('');arena.roleOff();arena.info({dive:result.keeper.dir,how:`${result.how} x${result.x} y${result.y} p${result.power}`});

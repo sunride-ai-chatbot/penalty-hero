@@ -70,7 +70,7 @@ export function filmedTaker(scene){
    texture.colorSpace=T.SRGBColorSpace;texture.premultiplyAlpha=true;texture.repeat.set(1/12,1/rows);texture.generateMipmaps=false;texture.minFilter=texture.magFilter=T.LinearFilter;Object.assign(reactions[name],{texture,ready:true})}));
  }
  const sync=()=>{const m=material.map;if(!m)return;plate.tex.value=m;plate.ro.value.set(m.repeat.x,m.repeat.y,m.offset.x,m.offset.y);plate.actorS.value.set(actor.scale.x,actor.scale.y)};
- const api={group,contact:2.35,duration:3.95,ready:null,flip:false,
+ const api={group,contact:2.35,duration:3.95,ready:null,flip:false,face:null,
   /** not in this picture (the replay camera): taker and shadow out of sight until the next pose() */
   hide(){group.visible=false;shadow.visible=false},get loaded(){return !!data},get shown(){return shown},
   identify(o){identity=o||{};shirtColor.set(identity.kit||'#ead03f');shortsColor.set(identity.trim||'#204987');
@@ -81,7 +81,7 @@ export function filmedTaker(scene){
    c.lineWidth=5;c.strokeText(name,192,44+(62-size)*.5,336);c.fillText(name,192,44+(62-size)*.5,336);
    c.font='900 196px "Heebo",Arial,sans-serif';c.direction='ltr';c.lineWidth=8;const no=String(identity.number??'');c.strokeText(no,192,112,330);c.fillText(no,192,112,330);ink.needsUpdate=true},
   /** time: seconds into the kick clip. reaction: null | 'goal' | 'miss', elapsed seconds into it. x: world x of the sprite plane. */
-  pose(time,x,z,reaction,elapsed){if(dead)return;const m=api.flip?-1:1;
+  pose(time,x,z,reaction,elapsed){if(dead)return;const m=api.flip?-1:1;group.rotation.y=api.face?Math.atan2(api.face.x-x,api.face.z-z):-Math.PI/2;
    const take=reactions[reaction];if(take?.ready&&data){group.visible=true;const h=3.15,w=h*208/376,i=Math.min(take.track.length-1,Math.max(0,Math.floor(elapsed*16)));
     material.map=take.texture;shadowMaterial.map=take.texture;refs.value.set(.93,.50);fringe.value.set(1/2496,1/3384,1);take.texture.offset.set(i%12/12,1-(Math.floor(i/12)+1)/take.rows);actor.scale.set(w*m,h,1);
     const kw=data.worldHeight*data.width/data.height,last=data.labels[data.frames-1];   // he reacts where the strike left him: same spot, no jump

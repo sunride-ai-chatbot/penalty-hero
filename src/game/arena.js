@@ -122,7 +122,7 @@ export function createArena(host,{debug=false,audio=null,force2d=false}={}){
      */
     replay(result,{signal}={}){return new Promise(resolve=>{if(disposed||signal?.aborted||!stage||typeof stage.replay!=='function')return resolve();let done=false;
       const end=()=>{if(done)return;done=true;clearTimeout(t);signal?.removeEventListener('abort',end);host.removeEventListener('pointerdown',skip,true);host.classList.remove('replaying');replayEl.hidden=true;try{stage.skipReplay&&stage.skipReplay()}catch(e){}resolve()};
-      const skip=e=>{e.preventDefault();e.stopPropagation();end()};const t=setTimeout(end,7000);signal?.addEventListener('abort',end);
+      const skip=e=>{e.preventDefault();e.stopPropagation();end()};const t=setTimeout(end,11000);signal?.addEventListener('abort',end);
       host.addEventListener('pointerdown',skip,true);host.classList.add('replaying');replayEl.hidden=false;
       try{stage.replay(result,end)}catch(e){console.error(e);end()}})},
     cheer(v){try{stage?.cheer(v)}catch(e){}},pause(){try{stage?.pause()}catch(e){}},resume(){try{stage?.resume()}catch(e){}},

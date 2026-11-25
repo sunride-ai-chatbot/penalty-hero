@@ -23,7 +23,7 @@ export function createPenaltyView(host,opts={}){
   let film=null,kf=null,shot=null,act=null,netT=-1,netZ=0,netAmp=1,netY=1.2,caughtAt=null,fps={n:0,t:0,value:0};
   // effects: slow motion on a goal, a freeze on contact with the frame, camera shake, a push in; and the replay camera
   const fx={scale:1,slow:null,stop:0,shake:0,punch:0,live:false},camBase={pos:new T.Vector3(),quat:new T.Quaternion(),fov:50},tq=new T.Quaternion(),te=new T.Euler();
-  let rep=false,repDone=null,lefty=false;
+  let rep=false,repDone=null,lefty=false,repPhase='run';
   const gloveL=new T.Vector3(),gloveR=new T.Vector3(),hold=new T.Vector3();
   // can this device draw the scene? After a warm-up, 1.2 seconds of frames are timed; under ten a second the game is told once.
   const perf={t:0,n:0,from:0,skip:false,done:false};
@@ -52,7 +52,10 @@ export function createPenaltyView(host,opts={}){
   }
   function saveCamera(){camBase.pos.copy(camera.position);camBase.quat.copy(camera.quaternion);camBase.fov=camera.fov}
   function frameCamera(){const w=wrap.clientWidth||1,h=wrap.clientHeight||1;camera.aspect=w/h;
-    if(rep){   // the replay: from the side of the goal mouth, close to the line, looking at the keeper and the net
+    if(rep&&repPhase==='run'){   // the replay, first half: the run-up and the strike from behind and to the side, then it cuts to the goal
+      camera.position.set(SPOT-6.4,1.5,3.7);camera.fov=T.MathUtils.radToDeg(clamp(2*Math.atan(Math.tan(Math.atan(2.6/6.9))/camera.aspect),T.MathUtils.degToRad(34),T.MathUtils.degToRad(70)));
+      camera.lookAt(SPOT+.4,1.25,-.45);camera.updateProjectionMatrix();saveCamera();return}
+    if(rep){   // the replay, second half: from the side of the goal mouth, close to the line, looking at the keeper and the net
       const cx=GX-6.8,cz=6.6,dist=Math.hypot(GX-cx,cz);camera.position.set(cx,1.5,cz);camera.fov=T.MathUtils.radToDeg(clamp(2*Math.atan(Math.tan(Math.atan(6.2/dist))/camera.aspect),T.MathUtils.degToRad(34),T.MathUtils.degToRad(78)));
       camera.lookAt(GX,.4,-.4);camera.updateProjectionMatrix();saveCamera();return}
     const sg=lefty?-1:1;camera.position.set(CAM.x,CAM.y,CAM.z*sg);
@@ -121,8 +124,9 @@ export function createPenaltyView(host,opts={}){
     if(kf?.ready&&!document.documentElement.hasAttribute('data-keeper3d')){keeperPicture();keeper.group.visible=false;if(keeper.shadow)keeper.shadow.visible=false}else kf?.hide();
     posePlayer(taker,{x:R.x,z:R.z,angle:Math.PI/2,speed:R.speed,kick:0,dive:0,celebrate:0,keeper:false,phase:R.speed?R.phase:undefined},clock);
     const filmed=!!film?.loaded,replaying=rep;
-    if(replaying&&film)film.hide();
-    if(filmed&&!replaying){const reacting=shot&&shot.reactAt!==null;film.pose(clipTime(),R.x+.28*clamp((R.x-RUN.x)/(SPOT-.28-RUN.x)),0,reacting?shot.reaction:null,reacting?clock-shot.reactAt:0)}
+    const afterContact=!!shot&&shot.contactAt!==null;
+    if(replaying&&film&&afterContact)film.hide();
+    if(filmed&&(!replaying||!afterContact)){film.face=replaying?camera.position:null;const reacting=shot&&shot.reactAt!==null;film.pose(clipTime(),R.x+.28*clamp((R.x-RUN.x)/(SPOT-.28-RUN.x)),0,reacting?shot.reaction:null,reacting?clock-shot.reactAt:0)}
     taker.group.visible=taker.shadow.visible=!filmed&&!replaying;
     
     if(caughtAt!==null){   // a caught ball travels into the gloves and stays in them while he lands
@@ -165,16 +169,16 @@ export function createPenaltyView(host,opts={}){
       const replaying=mode==='replay';
       const dir=String(r.keeper?.dir||'C'),col=dir.includes('L')?-1:dir.includes('R')?1:0,row=dir[0]==='U'?2:dir[0]==='D'?0:1,saved=r.how==='save';
       const flight=clamp(r.flight||48/clamp(r.power||73,30,100),.3,2),curl=r.curl||0,style=r.style||{};
-      const approach=replaying?.001:[1.0,1.25,1.55][style.run??1];
+      const approach=[1.0,1.25,1.55][style.run??1];
       // where his body ends: on a save the hands meet the ball, otherwise as far as the rules say he got
       const kz=saved?(col?col*clamp(Math.abs(r.x)-.35,.5,3.0):clamp(r.x,-.4,.4)):(col?col*Math.max(1.1,Math.abs(r.keeper?.z??1.9)):0);
       const delay=clamp(r.keeper?.delay??.2,.05,.6),handY=saved?clamp(r.y,.3,2.05):(r.keeper?.handY??[.35,1.15,1.95][row]);
       Object.assign(K,{state:'set',t:0,side:col,row,kz,handY,delay,dur:Math.max(.34,flight-delay),dive:0,landing:0,lift:saved&&col?clamp((r.y-.9)/1.6)*.55:0});
       if(saved&&col)K.liftSaved=K.lift;
       const scored=r.how==='goal',tx=scored?GX+.55:GX-.06,from={x:SPOT,y:BALL_R,z:0},arc=.05+.17*clamp(r.y/2.44);
-      shot={start:clock,contactAt:null,reactAt:null,reaction:null,r,approach,stutter:!!style.stutter&&!replaying,replay:replaying};let slowed=false;
+      shot={start:clock,contactAt:null,reactAt:null,reaction:null,r,approach,stutter:!!style.stutter,replay:replaying};let slowed=false;
       play(approach,u=>{R.x=RUN.x+(SPOT-.28-RUN.x)*u;R.z=RUN.z+(-.105-RUN.z)*u;R.speed=u<.92?3.1:0;R.phase=u*8;R.strike=u>.8?(u-.8)/.2*.62:-1},()=>{
-        R.speed=0;R.strike=.62;shot.contactAt=clock;K.state='read';K.t=0;try{on.contact&&on.contact()}catch(e){}
+        R.speed=0;R.strike=.62;shot.contactAt=clock;K.state='read';K.t=0;if(replaying){repPhase='flight';frameCamera();draw()}try{on.contact&&on.contact()}catch(e){}
         play(flight,u=>{R.strike=.62+.38*clamp(u*1.5);B.x=from.x+(tx-from.x)*u;B.z=from.z+(r.x-from.z)*u-curl*.9*4*u*(1-u);B.y=from.y+(r.y-from.y)*u+Math.sin(u*Math.PI)*arc;B.spin=curl*u*18+u*3;
           if(scored&&!slowed&&u>.84){slowed=true;slowmo(.3,.3,.8)}},()=>{
           shot.reaction=scored?'goal':'miss';const p={x:B.x,y:B.y,z:B.z},fire=()=>{try{on.result&&on.result()}catch(e){}};const hard=clamp((r.power||70)/100);
@@ -192,9 +196,9 @@ export function createPenaltyView(host,opts={}){
         })})},
     /**
      * The same kick again from the side of the goal, at half speed, for the kick that ended the shoot-out.
-     * The taker is not in this picture: it follows the ball, the keeper and the net. skipReplay() ends it early.
+     * The first half follows the run-up and the strike from behind and to the side (the taker's plane turns to face that camera); at the contact it cuts to the goal mouth for the ball, the keeper and the net. skipReplay() ends it early.
      */
-    replay(r,done){if(disposed||rep||!world)return done&&done();rep=true;repDone=done;fx.slow=null;fx.scale=1;fx.stop=0;resetKick();frameCamera();draw();
+    replay(r,done){if(disposed||rep||!world)return done&&done();rep=true;repPhase='run';repDone=done;fx.slow=null;fx.scale=1;fx.stop=0;resetKick();frameCamera();draw();
       api.shoot(r,()=>endReplay(),{},'replay')},
     skipReplay(){if(rep)endReplay()},
     /** A new kick in the same stadium: everything back to the spot, the new taker's shirt on. */

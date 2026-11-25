@@ -18,7 +18,7 @@ export function createArena(host,{debug=false,audio=null,force2d=false}={}){
     <div class="ar-role" aria-live="assertive"></div><div class="ar-chip" hidden></div><div class="ar-flash" aria-live="assertive"></div><div class="ar-hint" aria-live="polite"></div>
     <div class="ar-sight" hidden><b></b></div><div class="ar-target" hidden></div><svg class="ar-pull" hidden aria-hidden="true"><line/></svg>
     <div class="ar-meter" dir="ltr" hidden aria-label="מד דיוק ועוצמה"><span class="ar-window"></span><i class="ar-marker"></i><em>חלש</em><em>חזק</em></div>
-    <div class="ar-timer" hidden aria-hidden="true"><i></i></div><button type="button" class="ar-curl" hidden aria-live="polite"></button><div class="ar-replay" hidden><b>חזרה</b><span>גע כדי לדלג</span></div><div class="ar-pulse" aria-hidden="true"></div><div class="ar-a11y"></div>${debug?'<pre class="ar-debug" dir="ltr"></pre><div class="ar-zones"></div>':''}`;
+    <div class="ar-timer" hidden aria-hidden="true"><i></i></div><div class="ar-curl" hidden aria-live="polite"></div><div class="ar-replay" hidden><b>חזרה</b><span>גע כדי לדלג</span></div><div class="ar-pulse" aria-hidden="true"></div><div class="ar-a11y"></div>${debug?'<pre class="ar-debug" dir="ltr"></pre><div class="ar-zones"></div>':''}`;
   const $=s=>host.querySelector(s),view=$('.ar-view'),loadEl=$('.ar-load'),flashEl=$('.ar-flash'),hintEl=$('.ar-hint'),sight=$('.ar-sight'),target=$('.ar-target'),pull=$('.ar-pull'),meter=$('.ar-meter'),timer=$('.ar-timer'),a11y=$('.ar-a11y'),curlBtn=$('.ar-curl'),replayEl=$('.ar-replay');
   const CURL_TEXT={'0':'בעיטה ישרה','1':'עיקול ימינה ↷','-1':'עיקול שמאלה ↶'};
   let stage=null,disposed=false,flashT=0,roleT=0,debugT=0,lastInfo={},curlPref=0;const rng=makeRng((Math.random()*2**32)>>>0);

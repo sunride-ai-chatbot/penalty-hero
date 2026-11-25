@@ -99,8 +99,8 @@ input[type=text]:focus{outline:2px solid var(--go);outline-offset:1px;border-col
 @media (prefers-reduced-motion:reduce){.ar-role{transition:none}}
 
 /* ---- 1.2: curl switch, deciding-kick pressure, replay ---- */
-.ar-curl{pointer-events:none;position:absolute;z-index:10;left:50%;bottom:58px;transform:translateX(-50%);padding:7px 16px;border-radius:999px;border:0;font-weight:700;font-size:14px;line-height:1;font-family:inherit;color:#e9edf2;background:rgba(6,9,13,.7);box-shadow:0 0 0 1px rgba(255,255,255,.28);touch-action:manipulation;pointer-events:auto;cursor:pointer;min-height:36px}
-.ar-curl.on{color:#10151d;background:var(--gold);box-shadow:0 0 0 2px rgba(255,255,255,.55)}
+.ar-curl{pointer-events:none;position:absolute;z-index:10;left:50%;top:38%;transform:translateX(-50%);padding:4px 12px;border-radius:999px;font-weight:700;font-size:13px;line-height:1;font-family:inherit;color:#fff;background:rgba(6,9,13,.45);text-shadow:0 1px 3px #000}
+.ar-curl.on{color:#fff}
 .ar-curl[hidden],.ar-replay[hidden]{display:none}
 .game-arena.i-kick .ar-hint{bottom:100px}
 .ar-pulse{position:absolute;inset:0;z-index:4;pointer-events:none;opacity:0;background:radial-gradient(ellipse at 50% 55%,rgba(0,0,0,0) 52%,rgba(200,30,45,.55) 100%)}

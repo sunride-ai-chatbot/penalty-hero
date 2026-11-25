@@ -1,7 +1,7 @@
 // Penalty Hero service worker. One cache per version: code, data and media of different versions are never mixed.
 // Pages, code and data: network first (an update arrives as soon as there is a connection), cache when offline.
 // Heavy media: cache first inside this version's cache. Network play itself never comes from a cache — a room needs a live connection.
-const VERSION='1.2.1';const CACHE='penalty-hero-'+VERSION;
+const VERSION='1.3.0';const CACHE='penalty-hero-'+VERSION;
 self.addEventListener('install',e=>{self.skipWaiting()});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('penalty-hero-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
 self.addEventListener('fetch',e=>{const req=e.request;if(req.method!=='GET')return;const url=new URL(req.url);if(url.origin!==location.origin)return;

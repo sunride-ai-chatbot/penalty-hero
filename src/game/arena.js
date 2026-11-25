@@ -4,6 +4,7 @@
 //   keeping  touch the goal and drag: a ring follows the finger, a dotted line runs from the keeper to it; release to
 //            commit to that part of the goal. No arrows and no icons on the screen.
 // Pointer Events with capture; pointercancel never kicks; every listener and timer dies with the AbortSignal.
+import {bowOf as bowOfPath} from '../core/gesture.js';
 import {clamp,meterPosition,timingWindow,swayOf,swayAt,frameOf,zoneOf,pointOfDive,ZONE,DIRS,aiKick,makeRng} from '../core/rules.js';
 const TOUCH_LIFT=56;                 // px: the sight rides above a finger so it is never hidden under it
 const DIR_NAME={UL:'למעלה שמאלה',U:'למעלה',UR:'למעלה ימינה',L:'שמאלה',C:'להישאר באמצע',R:'ימינה',DL:'למטה שמאלה',D:'למטה',DR:'למטה ימינה'};
@@ -63,18 +64,20 @@ export function createArena(host,{debug=false,audio=null,force2d=false}={}){
      */
     askKick({shotSkill,keeperSkill,pressure=0,timeMs=10000,signal}){const win=timingWindow(shotSkill,keeperSkill,pressure),amp=swayOf(shotSkill);
       return ask(signal,({on,finish,loop})=>{let aim={x:0,y:1.15},touched=false,pointer=null,heldAt=null;const ck=shownClock();
-        meter.hidden=false;sight.hidden=false;timer.hidden=false;const paintCurl=()=>{curlBtn.textContent=CURL_TEXT[curlPref];curlBtn.classList.toggle('on',curlPref!==0)};paintCurl();curlBtn.hidden=false;
-        on(curlBtn,'click',e=>{e.preventDefault();e.stopPropagation();curlPref=curlPref===0?1:curlPref===1?-1:0;paintCurl();audio?.tap()});on(curlBtn,'pointerdown',e=>e.stopPropagation());
+        meter.hidden=false;sight.hidden=false;timer.hidden=false;let path=[];/* the curve is the finger's own path: a clear bow to one side while aiming bends the kick that way */
+        const bowOf=()=>bowOfPath(path);
+        const paintCurl=()=>{const c=bowOf();curlPref=c;curlBtn.textContent=c?CURL_TEXT[c]:'';curlBtn.classList.toggle('on',c!==0);curlBtn.hidden=c===0};paintCurl();
+        
         const w=meter.querySelector('.ar-window'),mk=meter.querySelector('.ar-marker');w.style.left=(win.from*100).toFixed(2)+'%';w.style.width=(win.width*100).toFixed(2)+'%';
         const cur=()=>{const s=swayAt(ck.ms/1000,amp);return {x:aim.x+s.dx,y:Math.max(.05,aim.y+s.dy)}};
         const pos=()=>heldAt===null?null:meterPosition(performance.now()-heldAt,win.speed);
-        const fire=auto=>{let c=cur(),m=pos(),curl=curlPref;if(auto&&!touched){const k=aiKick(shotSkill,rng);c=k.aim;m=k.meter;curl=k.curl||0}else if(m===null)m=aiKick(shotSkill,rng).meter;
+        const fire=auto=>{let c=cur(),m=pos(),curl=auto?0:bowOf();if(auto&&!touched){const k=aiKick(shotSkill,rng);c=k.aim;m=k.meter;curl=k.curl||0}else if(m===null)m=aiKick(shotSkill,rng).meter;
           finish({aim:{x:+c.x.toFixed(2),y:+c.y.toFixed(2)},meter:+m.toFixed(3),curl,auto:!!auto})};
-        const setAim=e=>{const r=host.getBoundingClientRect();const [x,y]=stage.fromScreen(e.clientX-r.left,e.clientY-r.top-(e.pointerType==='touch'?TOUCH_LIFT:0));aim={x:clamp(x,-4.6,4.6),y:clamp(y,.12,3.2)};touched=true};
+        const setAim=e=>{path.push({x:e.clientX,y:e.clientY});const r=host.getBoundingClientRect();const [x,y]=stage.fromScreen(e.clientX-r.left,e.clientY-r.top-(e.pointerType==='touch'?TOUCH_LIFT:0));aim={x:clamp(x,-4.6,4.6),y:clamp(y,.12,3.2)};touched=true};
         on(host,'pointerdown',e=>{if(pointer!==null||e.button>0||e.target.closest('button'))return;e.preventDefault();pointer=e.pointerId;heldAt=performance.now();try{host.setPointerCapture(e.pointerId)}catch(x){}setAim(e);audio?.unlock()});
-        on(host,'pointermove',e=>{if(e.pointerId===pointer){e.preventDefault();setAim(e)}});
-        on(host,'pointerup',e=>{if(e.pointerId!==pointer)return;e.preventDefault();setAim(e);fire(false)});
-        on(host,'pointercancel',e=>{if(e.pointerId===pointer){pointer=null;heldAt=null}});          // the system took the touch away: no kick
+        on(host,'pointermove',e=>{if(e.pointerId===pointer){e.preventDefault();setAim(e);paintCurl()}});
+        on(host,'pointerup',e=>{if(e.pointerId!==pointer)return;e.preventDefault();setAim(e);paintCurl();fire(false)});
+        on(host,'pointercancel',e=>{if(e.pointerId===pointer){pointer=null;heldAt=null;path=[];paintCurl()}});          // the system took the touch away: no kick
         on(host,'keydown',e=>{const k=e.key;if(k==='ArrowLeft')aim.x=clamp(aim.x-.3,-4.6,4.6);else if(k==='ArrowRight')aim.x=clamp(aim.x+.3,-4.6,4.6);else if(k==='ArrowUp')aim.y=clamp(aim.y+.22,.12,3.2);else if(k==='ArrowDown')aim.y=clamp(aim.y-.22,.12,3.2);
           else if(k===' '||k==='Enter'){if(!e.repeat&&heldAt===null)heldAt=performance.now()}else return;touched=true;e.preventDefault()});
         on(host,'keyup',e=>{if((e.key===' '||e.key==='Enter')&&heldAt!==null&&pointer===null){e.preventDefault();fire(false)}});

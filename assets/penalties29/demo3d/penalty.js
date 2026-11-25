@@ -1,5 +1,6 @@
 import * as T from './vendor/three.js';
 import {filmedTaker} from './filmed-taker.js';
+import {keeperFilm} from './keeper-film.js';
 import {buildWorld,animateNet} from './world.js';
 import {makeRosterPlayer,posePlayer,makeBall,applyStrike} from './actors.js';
 import './preload.js';   // turns on the shared image cache before anything is loaded
@@ -19,7 +20,7 @@ export function createPenaltyView(host,opts={}){
   const wrap=document.createElement('div');wrap.className='pg-3d';host.prepend(wrap);
   let renderer,world,ball,observer,raf=0,disposed=false,keeper=null,taker=null,clock=0,last=0,paused=false;
   const scene=new T.Scene(),camera=new T.PerspectiveCamera(50,1,.1,320),ray=new T.Raycaster(),v3=new T.Vector3(),v2=new T.Vector2();
-  let film=null,shot=null,act=null,netT=-1,netZ=0,netAmp=1,netY=1.2,caughtAt=null,fps={n:0,t:0,value:0};
+  let film=null,kf=null,shot=null,act=null,netT=-1,netZ=0,netAmp=1,netY=1.2,caughtAt=null,fps={n:0,t:0,value:0};
   // effects: slow motion on a goal, a freeze on contact with the frame, camera shake, a push in; and the replay camera
   const fx={scale:1,slow:null,stop:0,shake:0,punch:0,live:false},camBase={pos:new T.Vector3(),quat:new T.Quaternion(),fov:50},tq=new T.Quaternion(),te=new T.Euler();
   let rep=false,repDone=null,lefty=false;
@@ -40,14 +41,14 @@ export function createPenaltyView(host,opts={}){
     textures.forEach(t=>t.dispose());geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose())}
   function drop(a){if(!a)return;scene.remove(a.group,a.shadow);disposeObject(a.group);disposeObject(a.shadow)}
   function dispose(){if(disposed)return;disposed=true;cancelAnimationFrame(raf);raf=0;observer?.disconnect();document.removeEventListener('visibilitychange',onVis);act=null;shot=null;
-    film?.dispose();world?.crowdVideo?.dispose();disposeObject(scene);renderer?.dispose();try{renderer?.forceContextLoss()}catch(e){}wrap.remove()}
+    film?.dispose();kf?.dispose();world?.crowdVideo?.dispose();disposeObject(scene);renderer?.dispose();try{renderer?.forceContextLoss()}catch(e){}wrap.remove()}
   function fail(e){if(disposed)return;dispose();try{opts.onError&&opts.onError(e)}catch(x){}}
   function cast(o){
     drop(keeper);drop(taker);
     keeper=makeRosterPlayer(scene,{slot:'GK',side:1,number:o.gkNumber||1,kit:o.gkKit||'#f2b233',trim:'#10151d',pid:'k',team:'k',name:o.gkName||''},0);
     taker=makeRosterPlayer(scene,{slot:'FW',side:0,number:o.number??'',kit:o.kit||'#c6f24e',trim:o.trim||'#10151d',pid:'t',team:'t',name:o.name||''},1);
     try{world.setMood(o.mood)}catch(e){}lefty=!!o.left;if(film)film.flip=lefty;   // a left-footed taker: the same footage mirrored, the camera mirrored with it (the print on the shirt stays upright)
-    film?.identify(o);try{world.crowd.dress(o.kit||'#c6f24e',o.oppKit||'#e9edf2')}catch(e){}
+    film?.identify(o);kf?.identify(o.gkKit,o.gkTrim||'#10151d');try{world.crowd.dress(o.kit||'#c6f24e',o.oppKit||'#e9edf2')}catch(e){}
   }
   function saveCamera(){camBase.pos.copy(camera.position);camBase.quat.copy(camera.quaternion);camBase.fov=camera.fov}
   function frameCamera(){const w=wrap.clientWidth||1,h=wrap.clientHeight||1;camera.aspect=w/h;
@@ -69,6 +70,17 @@ export function createPenaltyView(host,opts={}){
       K.lift=K.side?liftFor(K.handY):(K.row===2?Math.sin(k*Math.PI)*.42:0);if(!K.side&&K.row===0)K.crouch=1;
       if(k>=1){K.state='land';K.t=0}}
     else if(K.state==='land'){const f=clamp(K.t/.38);K.landing=K.side?f*f:0;if(K.side)K.z=K.kz+K.side*.20*ease(clamp(K.t/.48));else K.lift=0;if(K.t>=.6){K.state='down';K.t=0}}
+  }
+  // the filmed keeper: the game's own state decides which clip and which frame (dive 0→30 then landing 30→63; jump 0→10 then 10→21)
+  const IDLE_N=36;
+  function keeperPicture(){
+    const s=K.state,t=K.t,k=clamp(t/(K.dur||.4)),sway=Math.sin(clock*2.6)*.38*K.sway;
+    const going=s==='dive'||s==='land'||s==='down',side=K.side||0;
+    let clip='idle',f=0,reach=0,lift=0,z=K.z+sway;
+    if(going&&side){clip='dive';f=s==='dive'?k*30:s==='land'?30+clamp(t/.6)*33:63;reach=clamp(f/30);z=K.z+side*.4*reach;lift=(liftFor(K.handY)-.14)*(1-(K.landing||0))*1.2}
+    else if(going&&K.row===2){clip='centre';f=s==='dive'?k*10:s==='land'?10+clamp(t/.6)*11:21}
+    else{const j=Math.floor(clock*10)%(2*(IDLE_N-1));f=j<IDLE_N?j:2*(IDLE_N-1)-j}
+    kf.pose({clip,f,x:KEEP_X,z,side:side>0?1:-1,reach,lift,face:rep?{x:camera.position.x,z:camera.position.z}:null});
   }
   function poseKeeper(t){
     const b=keeper.bones,n=keeper.names;const sway=Math.sin(t*2.6)*.38*K.sway;
@@ -103,6 +115,7 @@ export function createPenaltyView(host,opts={}){
   function draw(){
     if(disposed||document.hidden)return;
     poseKeeper(clock);
+    if(kf?.ready&&!document.documentElement.hasAttribute('data-keeper3d')){keeperPicture();keeper.group.visible=false;if(keeper.shadow)keeper.shadow.visible=false}else kf?.hide();
     posePlayer(taker,{x:R.x,z:R.z,angle:Math.PI/2,speed:R.speed,kick:0,dive:0,celebrate:0,keeper:false,phase:R.speed?R.phase:undefined},clock);
     const filmed=!!film?.loaded,replaying=rep;
     if(replaying&&film)film.hide();
@@ -200,7 +213,7 @@ export function createPenaltyView(host,opts={}){
     scene.traverse(o=>{if(o.isDirectionalLight&&o.castShadow){o.shadow.mapSize.set(1024,1024);Object.assign(o.shadow.camera,{left:-14,right:14,top:14,bottom:-14});o.target.position.set(45,0,0);o.shadow.camera.updateProjectionMatrix()}});
     ball=makeBall(scene);
     renderer.domElement.addEventListener('webglcontextlost',e=>{e.preventDefault();if(!disposed)fail(new Error('context lost'))});
-    film=filmedTaker(scene);
+    film=filmedTaker(scene);kf=keeperFilm(scene);
     api.ready=film.ready.then(()=>{if(disposed)return false;film.warm(renderer);draw();return true},e=>{console.error('Photographed taker unavailable',e);return false});
     api.reset(opts);renderer.domElement.setAttribute('aria-label','מגרש פנדלים תלת־ממדי');
     observer=new ResizeObserver(()=>{try{resize()}catch(e){fail(e)}});observer.observe(wrap);

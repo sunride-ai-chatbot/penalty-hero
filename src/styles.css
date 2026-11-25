@@ -122,3 +122,4 @@ input[type=text]:focus{outline:2px solid var(--go);outline-offset:1px;border-col
 .versus.one{margin:0 0 12px;width:100%}
 .statlist{display:grid;gap:2px;padding:6px 14px}.stat{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);font-size:15px}.stat:last-child{border-bottom:0}.stat b{color:var(--gold)}
 .big{font-size:19px;margin:6px 0}.big b{color:var(--gold);font-size:26px}
+.ar-zones{display:none}

@@ -56,6 +56,9 @@ export function filmedTaker(scene){
    vec4 pl=texture2D(plateTex,vPlate*plateRO.xy+plateRO.zw);
    vec3 pc=pow(max(pl.rgb/max(pl.a,.01),vec3(0.)),vec3(1./2.2));float mxp=max(pc.r,max(pc.g,pc.b));
    float shade=pl.a>.3?clamp(mxp/kitRef2.x,.5,1.1):1.;
+   float inside=pl.a;vec2 e=vec2(.012,.012);
+   inside=min(inside,min(min(texture2D(plateTex,(vPlate+vec2(e.x,0.))*plateRO.xy+plateRO.zw).a,texture2D(plateTex,(vPlate-vec2(e.x,0.))*plateRO.xy+plateRO.zw).a),min(texture2D(plateTex,(vPlate+vec2(0.,e.y))*plateRO.xy+plateRO.zw).a,texture2D(plateTex,(vPlate-vec2(0.,e.y))*plateRO.xy+plateRO.zw).a)));
+   diffuseColor.a*=smoothstep(.35,.9,inside);
    diffuseColor.rgb*=mix(1.,shade,.92);diffuseColor.a*=1.-.4*smoothstep(.78,1.,abs(xx));`)};
  let data=null,pages=[],dead=false,identity={},shown={clip:null,frame:-1};const reactions={};const waits=[],later=[];
  for(const [name,track] of Object.entries({goal:goalTrack,miss:missTrack})){

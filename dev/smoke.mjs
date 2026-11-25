@@ -1,0 +1,13 @@
+import {chromium} from '/opt/npm-tools/node_modules/playwright/index.mjs';import {createServer} from '../scripts/serve.mjs';
+const srv=createServer().listen(5198);
+const b=await chromium.launch({executablePath:'/usr/bin/google-chrome',args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist','--autoplay-policy=no-user-gesture-required']});
+const ctx=await b.newContext({viewport:{width:390,height:780},deviceScaleFactor:2,hasTouch:true,isMobile:true,locale:'he-IL'});
+const p=await ctx.newPage();const logs=[];p.on('console',m=>{if(!/GPU stall/.test(m.text()))logs.push(m.type()+': '+m.text())});p.on('pageerror',e=>logs.push('ERR '+e.message));p.on('response',r=>{if(r.status()>=400)logs.push(r.status()+' '+r.url())});
+const out='/tmp/ui';(await import('node:fs')).mkdirSync(out,{recursive:true});const snap=n=>p.screenshot({path:`${out}/${n}.png`});
+await p.goto('http://localhost:5198/?debug=1');await p.waitForSelector('#playerName');await p.waitForTimeout(1200);await snap('1-intro');
+await p.fill('#playerName','דני');await p.click('button[data-mode=cpu]');await p.waitForSelector('.tile');await snap('2-countries');
+await p.click('.tile[data-country=fr]');await p.waitForSelector('.tile[data-club]');await snap('3-clubs');
+await p.click('.tile[data-club="e:psg"]');await p.waitForSelector('#draw');await snap('4-opp');await p.click('#draw');await p.waitForSelector('#go');await snap('5-before');
+await p.click('#go');await p.waitForSelector('.ar-load[hidden]',{state:'attached',timeout:90000});await p.waitForTimeout(1500);await snap('6-game');
+console.log(await p.evaluate(()=>document.querySelector('#who').innerText));
+console.log(logs.join('\n'));await b.close();srv.close();

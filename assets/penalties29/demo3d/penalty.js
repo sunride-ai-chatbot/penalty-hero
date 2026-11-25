@@ -1,0 +1,165 @@
+import * as T from './vendor/three.js';
+import {filmedTaker} from './filmed-taker.js';
+import {buildWorld,animateNet} from './world.js';
+import {makeRosterPlayer,posePlayer,makeBall,applyStrike} from './actors.js';
+import './preload.js';   // turns on the shared image cache before anything is loaded
+
+// The penalty picture. Presentation only: it is told where the ball goes, what the keeper does and how the kick ends
+// (src/core/rules.js decided all of it) and draws that. No game state, no persistence, no random outcome.
+// One picture for every kick: from behind and above the taker. Goal coordinates as in the rules: x metres from the
+// middle of the goal, positive = right of the picture, y metres above the grass. In the world the pitch runs along
+// world-X (goal line at 52.5), height is world-Y and the goal's own x is world-Z.
+const GX=52.5,SPOT=41.5,KEEP_X=52.2,BALL_R=.145;
+const CAM={x:35.3,y:3.2,z:-.5,lookZ:.06,goalHalf:4.3};
+const APPROACH=1.25,FOLLOW=1.15;                       // seconds: run-up to contact, contact to the end of the filmed motion
+const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
+const ease=u=>1-Math.pow(1-u,2),smooth=u=>u*u*(3-2*u);
+
+export function createPenaltyView(host,opts={}){
+  const wrap=document.createElement('div');wrap.className='pg-3d';host.prepend(wrap);
+  let renderer,world,ball,observer,raf=0,disposed=false,keeper=null,taker=null,clock=0,last=0,paused=false;
+  const scene=new T.Scene(),camera=new T.PerspectiveCamera(50,1,.1,320),ray=new T.Raycaster(),v3=new T.Vector3(),v2=new T.Vector2();
+  let film=null,shot=null,act=null,netT=-1,netZ=0,caughtAt=null,fps={n:0,t:0,value:0};
+  const gloveL=new T.Vector3(),gloveR=new T.Vector3(),hold=new T.Vector3();
+  // can this device draw the scene? After a warm-up, 1.2 seconds of frames are timed; under ten a second the game is told once.
+  const perf={t:0,n:0,from:0,skip:false,done:false};
+  const onVis=()=>{perf.skip=true;if(!document.hidden){last=performance.now();if(!raf&&!disposed&&!paused)raf=requestAnimationFrame(frame)}};document.addEventListener('visibilitychange',onVis);
+  function measure(now,gap){if(!perf.from){perf.from=now;return}if(now-perf.from<900)return;if(perf.skip||document.hidden||gap>5000){perf.skip=false;return}
+    perf.t+=gap;perf.n++;if(perf.t<1200)return;perf.done=true;if(perf.n*1000/perf.t<10){try{opts.onSlow&&opts.onSlow()}catch(e){}}}
+  // keeper: wait → set (prepare) → read (ball struck, still on his feet) → dive (committed, one direction) → land → down
+  const K={state:'wait',t:0,z:0,dive:0,side:0,row:1,lift:0,landing:0,sway:1,crouch:0,kz:0,delay:.2,dur:.4};
+  const B={x:SPOT,y:BALL_R,z:0};
+  const RUN={x:SPOT-1.65,z:-.52};
+  const R={x:RUN.x,z:RUN.z,speed:0,phase:0,strike:-1};
+  function disposeObject(object){const geometries=new Set(),materials=new Set(),textures=new Set();
+    object.traverse(o=>{if(o.geometry)geometries.add(o.geometry);if(o.skeleton)o.skeleton.dispose();for(const m of (Array.isArray(o.material)?o.material:o.material?[o.material]:[])){materials.add(m);for(const v of Object.values(m))if(v?.isTexture)textures.add(v)}});
+    textures.forEach(t=>t.dispose());geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose())}
+  function drop(a){if(!a)return;scene.remove(a.group,a.shadow);disposeObject(a.group);disposeObject(a.shadow)}
+  function dispose(){if(disposed)return;disposed=true;cancelAnimationFrame(raf);raf=0;observer?.disconnect();document.removeEventListener('visibilitychange',onVis);act=null;shot=null;
+    film?.dispose();world?.crowdVideo?.dispose();disposeObject(scene);renderer?.dispose();try{renderer?.forceContextLoss()}catch(e){}wrap.remove()}
+  function fail(e){if(disposed)return;dispose();try{opts.onError&&opts.onError(e)}catch(x){}}
+  function cast(o){
+    drop(keeper);drop(taker);
+    keeper=makeRosterPlayer(scene,{slot:'GK',side:1,number:o.gkNumber||1,kit:o.gkKit||'#f2b233',trim:'#10151d',pid:'k',team:'k',name:o.gkName||''},0);
+    taker=makeRosterPlayer(scene,{slot:'FW',side:0,number:o.number??'',kit:o.kit||'#c6f24e',trim:o.trim||'#10151d',pid:'t',team:'t',name:o.name||''},1);
+    film?.identify(o);try{world.crowd.dress(o.kit||'#c6f24e',o.oppKit||'#e9edf2')}catch(e){}
+  }
+  function frameCamera(){const w=wrap.clientWidth||1,h=wrap.clientHeight||1;camera.aspect=w/h;camera.position.set(CAM.x,CAM.y,CAM.z);
+    // The lens is as long as the stage allows while (1) the whole goal mouth fits across and (2) the picture reaches from the
+    // taker's boots at the start of his run to the stand above the bar. Then the camera tilts so the boots sit on the bottom edge.
+    const across=2*Math.atan(Math.tan(Math.atan(CAM.goalHalf/(GX-CAM.x)))/camera.aspect),feet=Math.atan(CAM.y/(RUN.x-.55-CAM.x)),stand=T.MathUtils.degToRad(6.5);
+    const fov=clamp(Math.max(across,feet+stand,T.MathUtils.degToRad(camera.aspect>1.3?34:40)),T.MathUtils.degToRad(30),T.MathUtils.degToRad(64));
+    const pitch=Math.max(T.MathUtils.degToRad(4),feet-fov/2);camera.fov=T.MathUtils.radToDeg(fov);camera.lookAt(GX,CAM.y-Math.tan(pitch)*(GX-CAM.x),CAM.lookZ);camera.updateProjectionMatrix()}
+  function resize(){if(disposed)return;const w=wrap.clientWidth,h=wrap.clientHeight;if(!w||!h)return;renderer.setSize(w,h,false);frameCamera();draw()}
+  function stepKeeper(dt){K.t+=dt;
+    if(K.state==='wait'){K.sway=Math.min(1,K.sway+dt*2)}
+    else if(K.state==='set'){K.sway=Math.max(.25,K.sway-dt*1.2);K.crouch=Math.min(1,K.crouch+dt*2.2)}
+    else if(K.state==='read'){K.sway=Math.max(0,K.sway-dt*6);K.crouch=1;if(K.t>=K.delay){K.state='dive';K.t=0}}   // committed here: side and height never change again
+    else if(K.state==='dive'){const k=clamp(K.t/K.dur),e=ease(k);K.crouch=1-e;K.z=K.kz*e;K.dive=K.side?e:0;
+      K.lift=K.side?[0,.14,.46][K.row]:(K.row===2?Math.sin(k*Math.PI)*.42:0);if(!K.side&&K.row===0)K.crouch=1;
+      if(k>=1){K.state='land';K.t=0}}
+    else if(K.state==='land'){const f=clamp(K.t/.38);K.landing=K.side?f*f:0;if(K.side)K.z=K.kz+K.side*.20*ease(clamp(K.t/.48));else K.lift=0;if(K.t>=.6){K.state='down';K.t=0}}
+  }
+  function poseKeeper(t){
+    const b=keeper.bones,n=keeper.names;const sway=Math.sin(t*2.6)*.38*K.sway;
+    posePlayer(keeper,{x:KEEP_X,z:K.z+sway,angle:-Math.PI/2,speed:0,kick:0,dive:0,celebrate:0,keeper:true},t);
+    if(K.crouch>0&&!K.dive){const c=K.crouch;b[n.hips].position.y-=.07*c;b[n.Lthigh].rotation.x-=.16*c;b[n.Rthigh].rotation.x-=.16*c;b[n.Lshin].rotation.x+=.26*c;b[n.Rshin].rotation.x+=.26*c;b[n.Larm].rotation.z+=.22*c;b[n.Rarm].rotation.z-=.22*c}
+    if(K.state==='dive'||K.state==='land'||K.state==='down'){
+      if(K.side){const d=K.dive,s=K.side;  // he faces the taker, so his left hand is on the picture's right: the lean follows the side he goes to
+        const airborneHip=.9-.3*d+K.lift*d;
+        b[n.hips].rotation.z=-s*d*(1.2+.29*K.landing);b[n.hips].position.y=airborneHip+(.24-airborneHip)*K.landing;
+        b[n.Larm].rotation.z=s>0?-1.5*d:2.1*d;b[n.Rarm].rotation.z=s>0?-2.1*d:1.5*d;b[n.Lfore].rotation.x=-.15;b[n.Rfore].rotation.x=-.15;b[n.Lthigh].rotation.x=-.25;b[n.Rthigh].rotation.x=.15}
+      else if(K.row===2){const u=K.state==='dive'?ease(clamp(K.t/K.dur)):Math.max(0,1-K.t/.3);b[n.hips].position.y+=K.lift;b[n.Larm].rotation.z=.34+2.3*u;b[n.Rarm].rotation.z=-.34-2.3*u;b[n.Lfore].rotation.x=-.1;b[n.Rfore].rotation.x=-.1}
+      else if(K.row===0){const u=K.state==='dive'?ease(clamp(K.t/K.dur)):1;b[n.hips].position.y-=.30*u;b[n.Lthigh].rotation.x-=.5*u;b[n.Rthigh].rotation.x-=.5*u;b[n.Lshin].rotation.x+=.9*u;b[n.Rshin].rotation.x+=.9*u;b[n.spine].rotation.x+=.35*u;b[n.Larm].rotation.z=.2;b[n.Rarm].rotation.z=-.2;b[n.Larm].rotation.x=-.6*u;b[n.Rarm].rotation.x=-.6*u}
+      else{const u=K.state==='dive'?ease(clamp(K.t/K.dur)):1;b[n.Larm].rotation.x=-.9*u;b[n.Rarm].rotation.x=-.9*u;b[n.Lfore].rotation.x=-.5;b[n.Rfore].rotation.x=-.5}
+    }
+  }
+  function clipTime(){if(!shot)return 0;if(shot.contactAt===null)return film.contact*clamp((clock-shot.start)/APPROACH);
+    return film.contact+Math.min(film.duration-film.contact,(clock-shot.contactAt)*(film.duration-film.contact)/FOLLOW)}
+  function draw(){
+    if(disposed||document.hidden)return;
+    poseKeeper(clock);
+    posePlayer(taker,{x:R.x,z:R.z,angle:Math.PI/2,speed:R.speed,kick:0,dive:0,celebrate:0,keeper:false,phase:R.speed?R.phase:undefined},clock);
+    const filmed=!!film?.loaded;
+    if(filmed){const reacting=shot&&shot.reactAt!==null;film.pose(clipTime(),R.x+.28*clamp((R.x-RUN.x)/(SPOT-.28-RUN.x)),0,reacting?shot.reaction:null,reacting?clock-shot.reactAt:0)}
+    taker.group.visible=taker.shadow.visible=!filmed;
+    if(caughtAt!==null){   // a caught ball travels into the gloves and stays in them while he lands
+      keeper.group.updateMatrixWorld(true);keeper.bones[keeper.names.Lhand].getWorldPosition(gloveL);keeper.bones[keeper.names.Rhand].getWorldPosition(gloveR);
+      gloveL.add(gloveR).multiplyScalar(.5);gloveL.x-=.12;hold.lerpVectors(caughtAt.point,gloveL,smooth(clamp((clock-caughtAt.time)/.16)));
+      B.x=hold.x;B.y=Math.max(BALL_R,hold.y);B.z=hold.z}
+    ball.ball.position.set(B.x,B.y,B.z);const travel=B.x-SPOT;ball.ball.rotation.set(travel*.25,0,-travel*.6);   // no spin while it rests on the spot
+    const clearance=Math.max(0,B.y-BALL_R);                                                                    // the shadow stays on the grass, further and fainter as the ball rises
+    ball.shadow.position.set(B.x+clearance*.82,.03,B.z-clearance*.45);ball.shadow.scale.setScalar(1+.18*clearance);ball.shadow.material.opacity=.7/(1+.6*clearance);
+    if(netT>=0)animateNet(world.goals[1],netT,netZ);
+    if(R.strike>=0&&!filmed)applyStrike(taker,R.strike);
+    renderer.render(scene,camera);
+  }
+  function advance(dt){clock+=dt;if(netT>=0)netT+=dt;
+    if(world&&world.crowd){world.crowd.time=clock;world.crowd.decay(dt)}
+    stepKeeper(dt);
+    if(shot&&shot.reactAt===null&&shot.reaction&&shot.contactAt!==null&&clock-shot.contactAt>=FOLLOW)shot.reactAt=clock;   // the reaction follows the filmed motion, never cuts into it
+    if(act){act.t+=dt;const u=clamp(act.t/act.dur);act.step(u,act.t);if(u>=1){const a=act;act=null;a.done&&a.done()}}}
+  function frame(now){raf=0;if(disposed||paused)return;try{
+    const gap=now-last;if(!perf.done)measure(now,gap);last=now;fps.n++;fps.t+=gap;if(fps.t>=500){fps.value=Math.round(fps.n*1000/fps.t);fps.n=fps.t=0}
+    advance(clamp(gap/1000,0,.05));   // a long gap (the tab was away) advances the kick by 50 ms at most
+    draw()}catch(e){console.error(e);return fail(e)}
+    if(!disposed&&!document.hidden)raf=requestAnimationFrame(frame)}
+  function play(dur,step,done){act={t:0,dur:Math.max(.001,dur),step,done}}
+  const api={kind:'3d',ready:null,
+    toScreen(x,y){v3.set(GX,y,x).project(camera);return [(v3.x*.5+.5)*wrap.clientWidth,(-v3.y*.5+.5)*wrap.clientHeight]},
+    fromScreen(px,py){v2.set(px/Math.max(1,wrap.clientWidth)*2-1,-(py/Math.max(1,wrap.clientHeight)*2-1));ray.setFromCamera(v2,camera);const o=ray.ray.origin,d=ray.ray.direction;if(d.x<=1e-4)return [0,3];const t=(GX-o.x)/d.x;return [o.z+d.z*t,o.y+d.y*t]},
+    /** The keeper leans toward a direction while the user is still choosing (dir: one of the nine, or null). */
+    hint(dir){if(K.state!=='wait'&&K.state!=='set')return;const col=!dir?0:dir.includes('L')?-1:dir.includes('R')?1:0;K.kz=col*.18;K.z+=(K.kz-K.z)*.5},
+    /**
+     * Draw one kick. r = {x,y,how,power,flight,catch,keeper:{dir,z,row,delay}} as resolveKick() returned it.
+     * on.contact() fires on the frame the boot meets the ball, on.result() when the ball's fate is visible,
+     * done() after the keeper has landed and the taker has begun to react.
+     */
+    shoot(r,done,on={}){if(disposed)return;
+      const dir=String(r.keeper?.dir||'C'),col=dir.includes('L')?-1:dir.includes('R')?1:0,row=dir[0]==='U'?2:dir[0]==='D'?0:1,saved=r.how==='save';
+      const flight=clamp(r.flight||48/clamp(r.power||73,30,100),.3,2);
+      // where his body ends: on a save the hands meet the ball, otherwise as far as the rules say he got
+      const kz=saved?(col?col*clamp(Math.abs(r.x)-.35,.5,3.0):clamp(r.x,-.4,.4)):(col?col*Math.max(1.1,Math.abs(r.keeper?.z??1.9)):0);
+      const delay=clamp(r.keeper?.delay??.2,.05,.6);Object.assign(K,{state:'set',t:0,side:col,row,kz,delay,dur:Math.max(.34,flight-delay),dive:0,landing:0,lift:saved&&col?clamp((r.y-.9)/1.6)*.55:0});
+      if(saved&&col)K.liftSaved=K.lift;
+      const scored=r.how==='goal',tx=scored?GX+.55:GX-.06,from={x:SPOT,y:BALL_R,z:0},arc=.05+.17*clamp(r.y/2.44);
+      shot={start:clock,contactAt:null,reactAt:null,reaction:null,r};
+      play(APPROACH,u=>{R.x=RUN.x+(SPOT-.28-RUN.x)*u;R.z=RUN.z+(-.105-RUN.z)*u;R.speed=u<.92?3.1:0;R.phase=u*8;R.strike=u>.8?(u-.8)/.2*.62:-1},()=>{
+        R.speed=0;R.strike=.62;shot.contactAt=clock;K.state='read';K.t=0;try{on.contact&&on.contact()}catch(e){}
+        play(flight,u=>{R.strike=.62+.38*clamp(u*1.5);B.x=from.x+(tx-from.x)*u;B.z=from.z+(r.x-from.z)*u;B.y=from.y+(r.y-from.y)*u+Math.sin(u*Math.PI)*arc},()=>{
+          shot.reaction=scored?'goal':'miss';const p={x:B.x,y:B.y,z:B.z};try{on.result&&on.result()}catch(e){}
+          const finish=()=>{const wait=Math.max(0,FOLLOW+.55-(clock-shot.contactAt),K.state==='down'?0:.45);play(wait,()=>{},done)};
+          if(scored){netT=0;netZ=r.x;api.cheer(1);play(.7,u=>{B.x=p.x+.35*ease(u);B.y=Math.max(BALL_R,p.y-(p.y-BALL_R)*u*u);B.z=p.z},finish)}
+          else if(saved&&r.catch){caughtAt={time:clock,point:new T.Vector3(p.x,p.y,p.z)};play(.6,()=>{},finish)}
+          else if(saved){const s=r.x>=K.z?1:-1;play(.7,u=>{B.x=p.x-2.4*u;B.z=p.z+s*3.0*u;B.y=Math.max(BALL_R,p.y+1.0*Math.sin(u*Math.PI)-(p.y-BALL_R)*u)},finish)}
+          else if(r.how==='post'){const bar=r.y>2.3,s=r.x>=0?-1:1;play(.75,u=>{B.x=p.x-4.2*u;B.z=p.z+(bar?p.z*.05:s*1.7)*u;B.y=Math.max(BALL_R,p.y+(bar?.9:.5)*Math.sin(u*Math.PI)-(p.y-BALL_R)*u)},finish)}
+          else{const vy=(r.y-BALL_R)/(GX-SPOT),vz=r.x/(GX-SPOT);play(.6,u=>{const d=8.5*u;B.x=p.x+d;B.z=p.z+vz*d;B.y=Math.max(BALL_R,p.y+vy*d-1.6*u*u)},finish)}   // wide or over: it keeps going, behind the goal
+        })})},
+    /** A new kick in the same stadium: everything back to the spot, the new taker's shirt on. */
+    reset(o){if(disposed)throw new Error('disposed');shot=null;caughtAt=null;act=null;netT=-1;animateNet(world.goals[1],-1,0);
+      Object.assign(K,{state:'wait',t:0,z:0,dive:0,side:0,row:1,lift:0,landing:0,sway:1,crouch:0,kz:0});Object.assign(B,{x:SPOT,y:BALL_R,z:0});Object.assign(R,{x:RUN.x,z:RUN.z,speed:0,phase:0,strike:-1});
+      cast(o||opts);frameCamera();draw()},
+    cheer(v){if(world&&world.crowd)world.crowd.cheer=v==null?1:v},
+    /** stop drawing (another screen is on top) / start again without a jump in time */
+    pause(){paused=true;cancelAnimationFrame(raf);raf=0},resume(){if(disposed||!paused)return;paused=false;last=performance.now();raf=requestAnimationFrame(frame)},
+    /** tests: advance the picture by hand while paused */
+    step(seconds){let left=seconds;while(left>1e-9){const dt=Math.min(1/60,left);advance(dt);left-=dt}draw()},
+    /** for the hidden test view */
+    debug(){return {fps:fps.value,clip:film?.shown?.clip||null,frame:film?.shown?.frame??-1,contactFrame:film?Math.floor(film.contact*20):null,contactAt:shot?.contactAt??null,clock,keeper:K.state,keeperZ:+K.z.toFixed(3),keeperSide:K.side,ball:{...B},filmed:!!film?.loaded,power:shot?.r?.power??null,calls:renderer?.info?.render?.calls,textures:renderer?.info?.memory?.textures,geometries:renderer?.info?.memory?.geometries}},
+    dispose};
+  try{
+    renderer=new T.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.outputColorSpace=T.SRGBColorSpace;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=.95;renderer.shadowMap.type=T.PCFSoftShadowMap;
+    renderer.setPixelRatio(Math.min(devicePixelRatio||1,opts.maxPixelRatio||2));renderer.shadowMap.enabled=true;wrap.append(renderer.domElement);
+    world=buildWorld(scene,renderer);
+    // the shadow camera covers the penalty area only, so bodies and feet resolve cleanly
+    scene.traverse(o=>{if(o.isDirectionalLight&&o.castShadow){o.shadow.mapSize.set(1024,1024);Object.assign(o.shadow.camera,{left:-14,right:14,top:14,bottom:-14});o.target.position.set(45,0,0);o.shadow.camera.updateProjectionMatrix()}});
+    ball=makeBall(scene);
+    renderer.domElement.addEventListener('webglcontextlost',e=>{e.preventDefault();if(!disposed)fail(new Error('context lost'))});
+    film=filmedTaker(scene);
+    api.ready=film.ready.then(()=>{if(disposed)return false;film.warm(renderer);draw();return true},e=>{console.error('Photographed taker unavailable',e);return false});
+    api.reset(opts);renderer.domElement.setAttribute('aria-label','מגרש פנדלים תלת־ממדי');
+    observer=new ResizeObserver(()=>{try{resize()}catch(e){fail(e)}});observer.observe(wrap);
+    last=performance.now();raf=requestAnimationFrame(frame);
+  }catch(e){dispose();throw e}
+  return api;
+}

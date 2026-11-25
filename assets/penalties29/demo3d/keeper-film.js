@@ -28,21 +28,21 @@ export function keeperFilm(scene){
  const api={group,ready:false,get shown(){return api._shown||null},
   identify(kit,trim){shirt.set(kit||'#f2b233');shorts.set(trim||'#10151d')},
   hide(){group.visible=false;shadow.visible=false},
-  /** clip: 'idle'|'centre'|'dive'; f: frame (fractional ok, clamped); z: where the body is (world z); side: -1 picture left, 1 mirrored;
+  /** clip: 'idle'|'centre'|'dive'|'diveLow'|'diveHigh'|'sad'; f: frame (fractional ok, clamped); z: where the body is (world z); side: -1 picture left, 1 mirrored;
    *  reach 0…1: how far the anchor has moved from the body centre to the glove tip; lift: metres; yaw: face this point (replay camera) */
   pose({clip,f,x,z,side=-1,reach=0,lift=0,face=null}){
    if(!api.ready||!tex[clip]){api.hide();return false}
    const c=data.clips[clip],i=Math.max(0,Math.min(c.n-1,Math.round(f))),fr=c.frames[i],k=data.mPerPx/data.sc,m=side>0?-1:1;
    const w=c.cw*k,h=c.ch*k,cellMid=c.X0+c.cw/2,tip=fr.x0,anchor=fr.cx*(1-reach)+tip*reach;
    const dx=(cellMid-anchor)*k*m;                                   // plane centre relative to the anchor, picture-right positive
-   const floorY=(data.floorRow*data.sc-(c.Y0+c.ch))*k;               // bottom edge of the cell relative to the grass
+   const floorY=(c.floor-(c.Y0+c.ch))*k;               // bottom edge of the cell relative to the grass
    const t=tex[clip];material.map=t;const col=i%c.cols,row=Math.floor(i/c.cols),W=t.image.width,H=t.image.height;t.offset.set(col*c.cw/W,1-(row+1)*c.ch/H);
    group.visible=true;group.position.set(x,floorY+h/2+lift,z);actor.position.x=dx;actor.scale.set(w*m,h,1);
    group.rotation.y=face?Math.atan2(face.x-x,face.z-z):-Math.PI/2;
-   const grounded=1-Math.max(0,Math.min(1,(data.floorRow*data.sc-fr.y1-lift/k)/(60*data.sc)));
+   const grounded=1-Math.max(0,Math.min(1,(c.floor-fr.y1-lift/k)/(60*data.sc)));
    shadow.visible=true;shadow.position.set(x,.03,z);shadow.scale.set(Math.max(.7,(fr.x1-fr.x0)*k*.7),Math.max(.5,Math.min(1.1,(fr.x1-fr.x0)*k*.3)),1);shadow.material.opacity=.3*grounded;
    api._shown={clip,frame:i};return true},
-  count:clip=>data?.clips[clip]?.n||0,
+  count:clip=>data?.clips[clip]?.n||0,split:clip=>data?.clips[clip]?.split||1,
   dispose(){dead=true;scene.remove(group,shadow);Object.values(tex).forEach(t=>t.dispose());material.dispose();actor.geometry.dispose();shadow.geometry.dispose();shadow.material.dispose()}};
  fetch(new URL('../keeper/keeper.json',import.meta.url)).then(r=>{if(!r.ok)throw Error('keeper '+r.status);return r.json()}).then(async d=>{data=d;await Promise.all(Object.keys(d.clips).map(load));if(!dead)api.ready=true}).catch(e=>console.warn('keeper footage unavailable: the 3D keeper plays instead',e));
  return api;

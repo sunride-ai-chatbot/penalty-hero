@@ -71,14 +71,17 @@ export function createPenaltyView(host,opts={}){
       if(k>=1){K.state='land';K.t=0}}
     else if(K.state==='land'){const f=clamp(K.t/.38);K.landing=K.side?f*f:0;if(K.side)K.z=K.kz+K.side*.20*ease(clamp(K.t/.48));else K.lift=0;if(K.t>=.6){K.state='down';K.t=0}}
   }
-  // the filmed keeper: the game's own state decides which clip and which frame (dive 0→30 then landing 30→63; jump 0→10 then 10→21)
+  // the filmed keeper: the game's own state decides which clip and which frame. A dive runs the clip up to its "split" (arms fully out) while he
+  // commits, then the rest while he lands; a jump on the spot likewise. The clip is chosen by the height of the hands: low, middle or high.
   const IDLE_N=36;
   function keeperPicture(){
     const s=K.state,t=K.t,k=clamp(t/(K.dur||.4)),sway=Math.sin(clock*2.6)*.38*K.sway;
-    const going=s==='dive'||s==='land'||s==='down',side=K.side||0;
+    const going=s==='dive'||s==='land'||s==='down',side=K.side||0,conceded=shot&&shot.r&&shot.r.how==='goal';
     let clip='idle',f=0,reach=0,lift=0,z=K.z+sway;
-    if(going&&side){clip='dive';f=s==='dive'?k*30:s==='land'?30+clamp(t/.6)*33:63;reach=clamp(f/30);z=K.z+side*.4*reach;lift=(liftFor(K.handY)-.14)*(1-(K.landing||0))*1.2}
-    else if(going&&K.row===2){clip='centre';f=s==='dive'?k*10:s==='land'?10+clamp(t/.6)*11:21}
+    const run=(c)=>{const n=kf.count(c),sp=kf.split(c);return s==='dive'?k*sp:s==='land'?sp+clamp(t/.6)*(n-1-sp):n-1};
+    if(going&&side){clip=K.handY<.8?'diveLow':K.handY>1.5?'diveHigh':'dive';f=run(clip);reach=clamp(f/kf.split(clip));z=K.z+side*.4*reach;lift=(K.handY-({diveLow:.45,dive:1.15,diveHigh:1.9})[clip])*.4*(1-(K.landing||0))}
+    else if(s==='down'&&conceded){clip='sad';f=Math.min(kf.count('sad')-1,t*10);z=K.z}
+    else if(going&&K.row===2){clip='centre';f=run(clip)}
     else{const j=Math.floor(clock*10)%(2*(IDLE_N-1));f=j<IDLE_N?j:2*(IDLE_N-1)-j}
     kf.pose({clip,f,x:KEEP_X,z,side:side>0?1:-1,reach,lift,face:rep?{x:camera.position.x,z:camera.position.z}:null});
   }

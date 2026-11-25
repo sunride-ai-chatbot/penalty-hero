@@ -13,7 +13,7 @@ export async function soloKick({arena,audio,hud,T,G,taker,keeper,n,seed,diveRng,
   const ok=await arena.scene({...kits,name:shirtName(taker),number:taker.no,gkNumber:keeper.no,pid:taker.id,left:leftFooted(taker.id),mood:moodOf(T.club.id)});
   if(signal?.aborted)throw aborted();if(!ok)throw new Error('התמונה לא נטענה');
   arena.info({taker:`${taker.he} #${taker.no} (${taker.shot})`,dive:'',how:''});arena.pressure(pressure);audio?.whistle();
-  arena.role({iKick:true,keeperTag:`בשער: ${keeper.he}`});arena.hint('החזק, כוון ושחרר באזור הלבן');
+  arena.role({iKick:true,keeperTag:`בשער: ${keeper.he}`});arena.hint('החזק, כוון ושחרר באזור הלבן. קשת באצבע מעקלת');
   const c=await arena.askKick({shotSkill:taker.shot,keeperSkill:keeper.keep,pressure,timeMs:timeKick,signal});
   if(signal?.aborted)throw aborted();
   const result=resolveKick({aim:c.aim,meter:c.meter,shotSkill:taker.shot,keeperSkill:keeper.keep,dive:aiDive(keeper.keep,diveRng),curl:c.curl||0,rng:makeRng(String(seed))});

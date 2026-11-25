@@ -50,14 +50,15 @@ export function filmedTaker(scene){
  const plate={tex:{value:null},ro:{value:new T.Vector4(1,1,0,0)},actorS:{value:new T.Vector2(1,1)},lm:{value:label.matrix}};
  label.material.onBeforeCompile=shader=>{Object.assign(shader.uniforms,{plateTex:plate.tex,plateRO:plate.ro,actorS:plate.actorS,lm:plate.lm,kitRef2:refs});
   shader.vertexShader='uniform mat4 lm;uniform vec2 actorS;varying vec2 vPlate;\n'+shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n vec4 gp=lm*vec4(position,1.0);vPlate=vec2(gp.x/actorS.x+.5,gp.y/actorS.y+.5);');
-  shader.fragmentShader='uniform sampler2D plateTex;uniform vec4 plateRO;uniform vec2 kitRef2;varying vec2 vPlate;\n'+shader.fragmentShader.replace('#include <map_fragment>',`
+  shader.fragmentShader='uniform sampler2D plateTex;uniform vec4 plateRO;uniform vec2 kitRef2;varying vec2 vPlate;\nfloat shirtAt(vec2 v){vec4 t=texture2D(plateTex,v*plateRO.xy+plateRO.zw);vec3 c=pow(max(t.rgb/max(t.a,.01),vec3(0.)),vec3(1./2.2));float mx=max(c.r,max(c.g,c.b)),mn=min(c.r,min(c.g,c.b));float sat=mx>0.?(mx-mn)/mx:0.;float yel=step(c.b+.12,min(c.r,c.g))*smoothstep(.35,.5,sat)*smoothstep(.3,.45,mx);return t.a*yel;}\n'+shader.fragmentShader.replace('#include <map_fragment>',`
    vec2 q=vMapUv;float xx=(q.x-.5)*2.;xx=asin(clamp(xx*.6,-.99,.99))/asin(.6);q.x=xx*.5+.5;
    vec4 sampledDiffuseColor=texture2D(map,q);diffuseColor*=sampledDiffuseColor;
    vec4 pl=texture2D(plateTex,vPlate*plateRO.xy+plateRO.zw);
    vec3 pc=pow(max(pl.rgb/max(pl.a,.01),vec3(0.)),vec3(1./2.2));float mxp=max(pc.r,max(pc.g,pc.b));
    float shade=pl.a>.3?clamp(mxp/kitRef2.x,.5,1.1):1.;
-   float inside=pl.a;vec2 e=vec2(.012,.012);
-   inside=min(inside,min(min(texture2D(plateTex,(vPlate+vec2(e.x,0.))*plateRO.xy+plateRO.zw).a,texture2D(plateTex,(vPlate-vec2(e.x,0.))*plateRO.xy+plateRO.zw).a),min(texture2D(plateTex,(vPlate+vec2(0.,e.y))*plateRO.xy+plateRO.zw).a,texture2D(plateTex,(vPlate-vec2(0.,e.y))*plateRO.xy+plateRO.zw).a)));
+   float inside=1.;vec2 e=vec2(.007,.007);
+   vec2 o0=vec2(0.),o1=vec2(e.x,0.),o2=vec2(-e.x,0.),o3=vec2(0.,e.y),o4=vec2(0.,-e.y);
+   inside=min(min(min(shirtAt(vPlate+o0),shirtAt(vPlate+o1)),min(shirtAt(vPlate+o2),shirtAt(vPlate+o3))),shirtAt(vPlate+o4));
    diffuseColor.a*=smoothstep(.35,.9,inside);
    diffuseColor.rgb*=mix(1.,shade,.92);diffuseColor.a*=1.-.4*smoothstep(.78,1.,abs(xx));`)};
  let data=null,pages=[],dead=false,identity={},shown={clip:null,frame:-1};const reactions={};const waits=[],later=[];
@@ -77,9 +78,9 @@ export function filmedTaker(scene){
    const c=canvas.getContext('2d');c.clearRect(0,0,384,320);const light=shirtColor.getHSL({}).l>.36;c.fillStyle=light?'#152139':'#fffdf2';c.strokeStyle=light?'rgba(255,255,255,.35)':'rgba(0,0,0,.4)';c.lineJoin='round';
    c.textAlign='center';c.textBaseline='top';c.direction='rtl';const name=String(identity.name||'');const font=s=>'800 '+s+'px "Heebo","Arial Hebrew",Arial,sans-serif';
    // the canvas is the back panel of the shirt: the top eighth is the collar and stays empty, the name sits under it, the number fills the rest
-   let size=62;do{c.font=font(size);if(c.measureText(name).width<=330)break;size-=2}while(size>28);
-   c.lineWidth=5;c.strokeText(name,192,44+(62-size)*.5,336);c.fillText(name,192,44+(62-size)*.5,336);
-   c.font='900 196px "Heebo",Arial,sans-serif';c.direction='ltr';c.lineWidth=8;const no=String(identity.number??'');c.strokeText(no,192,112,330);c.fillText(no,192,112,330);ink.needsUpdate=true},
+   let size=62;do{c.font=font(size);if(c.measureText(name).width<=220)break;size-=2}while(size>26);
+   c.lineWidth=5;c.strokeText(name,192,62+(62-size)*.5,224);c.fillText(name,192,62+(62-size)*.5,224);
+   c.font='900 178px "Heebo",Arial,sans-serif';c.direction='ltr';c.lineWidth=8;const no=String(identity.number??'');c.strokeText(no,192,122,300);c.fillText(no,192,122,300);ink.needsUpdate=true},
   /** time: seconds into the kick clip. reaction: null | 'goal' | 'miss', elapsed seconds into it. x: world x of the sprite plane. */
   pose(time,x,z,reaction,elapsed){if(dead)return;const m=api.flip?-1:1;group.rotation.y=api.face?Math.atan2(api.face.x-x,api.face.z-z):-Math.PI/2;
    const take=reactions[reaction];if(take?.ready&&data){group.visible=true;const h=3.15,w=h*208/376,i=Math.min(take.track.length-1,Math.max(0,Math.floor(elapsed*16)));

@@ -66,7 +66,7 @@ export function createArena(host,{debug=false,audio=null,force2d=false}={}){
       return ask(signal,({on,finish,loop})=>{let aim={x:0,y:1.15},touched=false,pointer=null,heldAt=null;const ck=shownClock();
         meter.hidden=false;sight.hidden=false;timer.hidden=false;let path=[];/* the curve is the finger's own path: a clear bow to one side while aiming bends the kick that way */
         const bowOf=()=>bowOfPath(path);
-        const paintCurl=()=>{const c=bowOf();curlPref=c;curlBtn.textContent=c?CURL_TEXT[c]:'';curlBtn.classList.toggle('on',c!==0);curlBtn.hidden=c===0};paintCurl();
+        const paintCurl=()=>{curlPref=bowOf()};paintCurl();   // no label, no button: the curve is only the shape of the finger's path
         
         const w=meter.querySelector('.ar-window'),mk=meter.querySelector('.ar-marker');w.style.left=(win.from*100).toFixed(2)+'%';w.style.width=(win.width*100).toFixed(2)+'%';
         const cur=()=>{const s=swayAt(ck.ms/1000,amp);return {x:aim.x+s.dx,y:Math.max(.05,aim.y+s.dy)}};
@@ -125,6 +125,11 @@ export function createArena(host,{debug=false,audio=null,force2d=false}={}){
       const skip=e=>{e.preventDefault();e.stopPropagation();end()};const t=setTimeout(end,11000);signal?.addEventListener('abort',end);
       host.addEventListener('pointerdown',skip,true);host.classList.add('replaying');replayEl.hidden=false;
       try{stage.replay(result,end)}catch(e){console.error(e);end()}})},
+    /** The scorer's team runs in and hugs after the deciding goal. A tap skips it; never longer than 9 s. Resolves when it is over (at once without the 3D picture). */
+    celebrate({signal}={}){return new Promise(resolve=>{if(disposed||signal?.aborted||!stage||typeof stage.celebrate!=='function')return resolve();let done=false;
+      const end=()=>{if(done)return;done=true;clearTimeout(t);signal?.removeEventListener('abort',end);host.removeEventListener('pointerdown',skip,true);try{stage.skipCelebration&&stage.skipCelebration()}catch(e){}resolve()};
+      const skip=e=>{e.preventDefault();e.stopPropagation();end()};const t=setTimeout(end,9000);signal?.addEventListener('abort',end);host.addEventListener('pointerdown',skip,true);
+      try{stage.celebrate(end)}catch(e){console.error(e);end()}})},
     cheer(v){try{stage?.cheer(v)}catch(e){}},pause(){try{stage?.pause()}catch(e){}},resume(){try{stage?.resume()}catch(e){}},
     dispose(){if(disposed)return;disposed=true;host.classList.remove('pressure','replaying');clearTimeout(flashT);clearTimeout(roleT);host.classList.remove('i-kick','i-keep');clearInterval(debugT);try{api._cancel&&api._cancel()}catch(e){}host.removeEventListener('contextmenu',stop);host.removeEventListener('selectstart',stop);host.removeEventListener('dragstart',stop);
       try{stage?.dispose()}catch(e){}stage=null;host.innerHTML='';host.classList.remove('game-arena')}};

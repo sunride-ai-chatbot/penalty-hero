@@ -13,12 +13,12 @@ const shownClock=()=>{let last=performance.now(),ms=0;return {tick(){const n=per
 export function createArena(host,{debug=false,audio=null,force2d=false}={}){
   host.classList.add('game-arena');host.tabIndex=0;
   host.innerHTML=`<div class="ar-view"></div><div class="ar-load" role="status">טוען את האצטדיון…</div>
-    <div class="ar-flash" aria-live="assertive"></div><div class="ar-hint" aria-live="polite"></div>
+    <div class="ar-role" aria-live="assertive"></div><div class="ar-chip" hidden></div><div class="ar-flash" aria-live="assertive"></div><div class="ar-hint" aria-live="polite"></div>
     <div class="ar-sight" hidden><b></b></div><div class="ar-target" hidden></div><svg class="ar-pull" hidden aria-hidden="true"><line/></svg>
     <div class="ar-meter" dir="ltr" hidden aria-label="מד דיוק ועוצמה"><span class="ar-window"></span><i class="ar-marker"></i><em>חלש</em><em>חזק</em></div>
     <div class="ar-timer" hidden aria-hidden="true"><i></i></div><div class="ar-a11y"></div>${debug?'<pre class="ar-debug" dir="ltr"></pre><div class="ar-zones"></div>':''}`;
   const $=s=>host.querySelector(s),view=$('.ar-view'),loadEl=$('.ar-load'),flashEl=$('.ar-flash'),hintEl=$('.ar-hint'),sight=$('.ar-sight'),target=$('.ar-target'),pull=$('.ar-pull'),meter=$('.ar-meter'),timer=$('.ar-timer'),a11y=$('.ar-a11y');
-  let stage=null,disposed=false,flashT=0,debugT=0,lastInfo={};const rng=makeRng((Math.random()*2**32)>>>0);
+  let stage=null,disposed=false,flashT=0,roleT=0,debugT=0,lastInfo={};const rng=makeRng((Math.random()*2**32)>>>0);
   const stop=e=>e.preventDefault();host.addEventListener('contextmenu',stop);host.addEventListener('selectstart',stop);host.addEventListener('dragstart',stop);
   async function build(opts){loadEl.hidden=false;loadEl.textContent='טוען את האצטדיון…';
     if(stage){try{stage.dispose()}catch(e){}stage=null}
@@ -44,6 +44,16 @@ export function createArena(host,{debug=false,audio=null,force2d=false}={}){
     /** (re)build the picture for a kick; resolves when the taker's film and the stadium are on the GPU */
     async scene(opts){if(disposed)return false;if(!stage||api.broken){api.broken=false;return build(opts)}try{stage.reset(opts);return true}catch(e){return build(opts)}},
     hint(text){hintEl.textContent=text||''},info(o){lastInfo={...lastInfo,...o}},
+    /**
+     * Say, unmistakably, which of the two I am for this kick. Both phones show the same picture (the taker from behind),
+     * so the role is spelled out three ways: a large banner as the kick opens, a coloured frame around the arena for
+     * as long as the kick lasts, and a tag over the keeper naming who stands in goal.
+     */
+    role({iKick,keeperTag}){clearTimeout(roleT);host.classList.toggle('i-kick',!!iKick);host.classList.toggle('i-keep',!iKick);const el=$('.ar-role'),chip=$('.ar-chip');
+      el.innerHTML=iKick?'<b>אתה בועט</b><span>החזק, כוון, שחרר באזור הלבן</span>':'<b>אתה בשער</b><span>משוך לכיוון הזינוק ושחרר</span>';el.className='ar-role on '+(iKick?'kick':'keep');roleT=setTimeout(()=>{el.className='ar-role '+(iKick?'kick':'keep')},1500);
+      chip.textContent=keeperTag||'';chip.className='ar-chip '+(iKick?'them':'me');chip.hidden=!keeperTag;if(stage&&keeperTag){const [px,py]=stage.toScreen(0,2.02);chip.style.transform=`translate(${px.toFixed(1)}px,${py.toFixed(1)}px)`}},
+    /** the kick is on its way: the tag over the keeper would only get in the way of the dive */
+    roleOff(){$('.ar-chip').hidden=true},
     /** a short word above the goal, in the stand; never a panel over the play */
     flash(text,good){clearTimeout(flashT);const [,py]=stage?stage.toScreen(0,3.25):[0,90];flashEl.style.top=Math.max(8,py-34)+'px';flashEl.textContent=text;flashEl.className='ar-flash on '+(good?'good':'bad');flashT=setTimeout(()=>{flashEl.className='ar-flash'},1900)},
     /**
@@ -95,6 +105,6 @@ export function createArena(host,{debug=false,audio=null,force2d=false}={}){
       const t=setTimeout(()=>end(),9000);let told=false;const result1=()=>{if(told)return;told=true;try{onResult&&onResult()}catch(e){console.error(e)}};
       try{stage.shoot(result,()=>{result1();end()},{contact:()=>{try{onContact&&onContact()}catch(e){}},result:result1})}catch(e){console.error(e);result1();end()}})},
     cheer(v){try{stage?.cheer(v)}catch(e){}},pause(){try{stage?.pause()}catch(e){}},resume(){try{stage?.resume()}catch(e){}},
-    dispose(){if(disposed)return;disposed=true;clearTimeout(flashT);clearInterval(debugT);try{api._cancel&&api._cancel()}catch(e){}host.removeEventListener('contextmenu',stop);host.removeEventListener('selectstart',stop);host.removeEventListener('dragstart',stop);
+    dispose(){if(disposed)return;disposed=true;clearTimeout(flashT);clearTimeout(roleT);host.classList.remove('i-kick','i-keep');clearInterval(debugT);try{api._cancel&&api._cancel()}catch(e){}host.removeEventListener('contextmenu',stop);host.removeEventListener('selectstart',stop);host.removeEventListener('dragstart',stop);
       try{stage?.dispose()}catch(e){}stage=null;host.innerHTML='';host.classList.remove('game-arena')}};
   return api}

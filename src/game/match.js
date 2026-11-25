@@ -24,6 +24,7 @@ export async function runDuel({arena,audio,sides,me,first,net=null,hud,signal,ti
     const ok=await arena.scene({...kits,name:shirtName(taker),number:taker.no,gkNumber:keeper.no,pid:taker.id});
     if(signal?.aborted)throw Object.assign(new Error('aborted'),{name:'AbortError'});if(!ok)throw new Error('התמונה לא נטענה');
     arena.info({taker:`${taker.he} #${taker.no} (${taker.shot})`,dive:'',how:''});audio?.whistle();
+    arena.role({iKick,keeperTag:iKick?`בשער: ${G.participant||keeper.he}`:'אתה בשער'});
     let kick,dive,seed;
     if(net){
       if(iKick){arena.hint('החזק, כוון ושחרר כשהסמן באזור הלבן');const c=await arena.askKick({shotSkill:taker.shot,keeperSkill:keeper.keep,timeMs:timeKick,signal});
@@ -35,7 +36,7 @@ export async function runDuel({arena,audio,sides,me,first,net=null,hud,signal,ti
       else{arena.hint('אתה בשער: משוך לכיוון הזינוק ושחרר');const c=await arena.askDive({timeMs:timeDive,signal});dive=c.d;const k=aiKick(taker.shot,local);kick={aim:k.aim,meter:k.meter};await sleep(250,signal)}}
     if(signal?.aborted)throw Object.assign(new Error('aborted'),{name:'AbortError'});
     const result=resolveKick({aim:kick.aim,meter:kick.meter,shotSkill:taker.shot,keeperSkill:keeper.keep,dive,rng:makeRng(String(seed))});
-    arena.hint('');arena.info({dive:result.keeper.dir,how:`${result.how} x${result.x} y${result.y} p${result.power}`});
+    arena.hint('');arena.roleOff();arena.info({dive:result.keeper.dir,how:`${result.how} x${result.x} y${result.y} p${result.power}`});
     const settle=()=>{if(!recordKick(duel,turn.k,result.out))return;            // once: a second callback, a replayed frame or a repeated message changes nothing
       const word=resultWord(result.how,iKick,result.catch,callBag);hud.marks(duel);arena.flash(word.text,word.good);arena.cheer(word.good?1:.3);
       if(result.how==='goal')audio?.goal(iKick);else if(result.how==='save')audio?.save(result.catch);else if(result.how==='post')audio?.post();else audio?.miss();

@@ -107,5 +107,27 @@ await step('two clients, one room: the link keeps the room, different clubs and 
   assert.match((await state(host)).scores,/a0:-----/);assert.ok(guest.url().includes('room='+code),'the same room, no new invitation');
   await guest.click('#quit');await guest.click('#leave');await host.waitForFunction(()=>/היריב עזב/.test(document.querySelector('#panel').innerText),null,{timeout:15000});await ctx.close()});
 
+await step('more ways to play: the chips, my numbers, survival ends on the first miss, the daily counts once, the cup runs a round',async()=>{const ctx=await phone(),p=await page(ctx);await p.goto(BASE+'?debug');await p.waitForSelector('#playerName');
+  assert.deepEqual(await p.$$eval('.more .chip',b=>b.map(x=>x.textContent)),['טורניר','הישרדות','אתגר יומי','הסטטיסטיקה שלי']);await p.fill('#playerName','רוני');
+  const kickOnce=async(x,y,m,c=0)=>{await p.waitForFunction(()=>window.__ph&&window.__ph.arena._kick,null,{timeout:90000});await p.evaluate(([x,y,m,c])=>window.__ph.arena._kick(x,y,m,c),[x,y,m,c])};
+  const stats=()=>p.evaluate(()=>JSON.parse(localStorage.getItem('ph.stats')||'{}'));
+  await p.click('.chip[data-mode=stats]');await p.waitForSelector('#app[data-screen=stats]');assert.match(await p.textContent('.statlist'),/שיא הישרדות/);await p.click('[data-back]');await p.waitForSelector('#playerName');
+  // survival: a ball far outside is a miss; the run is over and the record saved
+  await p.click('.chip[data-mode=surv]');await pickClub(p,'il','il1','il:mta');await p.waitForSelector('#app[data-screen=surv]');await p.click('#go');
+  await kickOnce(5.2,3,.73,1);await p.waitForFunction(()=>{const e=document.querySelector('#panel .end');return e&&/לא הבקעת הפעם|שערים ברצף/.test(e.innerText)},null,{timeout:60000});
+  let st=await stats();assert.equal(st.survRuns,1);assert.equal(st.shots,1);await p.click('[data-act=home]');await p.waitForSelector('#playerName');
+  // daily: five kicks, counted once; the second visit is practice
+  await p.click('.chip[data-mode=daily]');await p.waitForSelector('#app[data-screen=daily]');await p.click('#go');
+  for(let i=0;i<5;i++)await kickOnce([2.6,-2.5,.3,2.9,-1.2][i],[.6,1.7,1.1,.5,1.9][i],.73,[0,1,-1,0,0][i]);
+  await p.waitForFunction(()=>/מתוך 5/.test(document.querySelector('#panel .end')?.innerText||''),null,{timeout:90000});st=await stats();const keys=Object.keys(st.daily.scores);assert.equal(keys.length,1);assert.equal(st.daily.streak,1);
+  assert.match(await p.textContent('#panel'),/[🟩⬛]{5}/u);await p.click('[data-act=home]');await p.waitForSelector('#playerName');
+  await p.click('.chip[data-mode=daily]');await p.waitForSelector('#app[data-screen=daily]');assert.match(await p.textContent('#go'),/תרגול/);assert.match(await p.textContent('.card'),/היום קיבלת/);await p.click('[data-back]');
+  // the cup: three rows, the first round is a real shoot-out
+  await p.click('.chip[data-mode=tour]');await p.waitForSelector('#app[data-screen=pick]');await pickClub(p,'il','il1','il:mta');await p.waitForSelector('#app[data-screen=cup]');assert.equal((await p.$$('.path li')).length,3);assert.equal(await p.$$eval('.path li.now',e=>e.length),1);
+  await p.click('#go');   // every ball of mine goes wide: he is out after a handful of kicks, which keeps the test short
+  for(let guard=0;guard<40;guard++){await p.waitForFunction(()=>window.__ph&&(window.__ph.arena._kick||window.__ph.arena._dive||!document.querySelector('#panel').hidden),null,{timeout:90000});
+    const st1=await p.evaluate(()=>({end:!document.querySelector('#panel').hidden,k:!!window.__ph.arena._kick}));if(st1.end)break;await p.evaluate(k=>{const a=window.__ph.arena;if(k)a._kick(5.5,3,.73);else a._dive('L')},st1.k);await p.waitForTimeout(250)}
+  const end=(await state(p)).end;assert.match(end,/עלית לשלב הבא|הודחת ב/);st=await stats();assert.equal(st.played,1);assert.ok(st.shots>=5);await ctx.close()});
+
 await browser.close();srv.close();
 const unique=[...new Set(problems)];console.log(`\n${passed} passed, ${unique.length} problems`);for(const x of unique)console.log(' - '+x);process.exit(unique.length?1:0);

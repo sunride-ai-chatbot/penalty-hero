@@ -14,7 +14,7 @@ export function buildWorld(scene,renderer){
     fix: one cold bank high over the near touchline casting the shadows, a dimmer bank from the far corner so no
     face goes black, and a warm bounce off the stands. */
  scene.background=new T.Color(0x070c15);scene.fog=new T.Fog(0x0a111c,95,240);
- scene.add(new T.HemisphereLight(0x3a5a7a,0x101a14,.8));
+ const hemi=new T.HemisphereLight(0x3a5a7a,0x101a14,.8);scene.add(hemi);
  const sun=new T.DirectionalLight(0xe9f1ff,1.8);sun.position.set(-34,76,34);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-40,right:40,top:35,bottom:-35,near:1,far:150});sun.shadow.bias=-.00015;sun.shadow.normalBias=.025;sun.shadow.radius=2;sun.target.position.set(28,0,0);scene.add(sun,sun.target);
  const fill=new T.DirectionalLight(0xc3d6f5,.6);fill.position.set(44,58,-42);scene.add(fill);
  const warm=new T.DirectionalLight(0xffd6a2,.3);warm.position.set(0,16,-72);scene.add(warm);
@@ -244,9 +244,22 @@ export function buildWorld(scene,renderer){
    gatePts.forEach(([x],i)=>{const base=x<0?A:B;if(base==null)return;flags.setColorAt(i,col.setHex(base).multiplyScalar(.9))});
    flags.instanceColor&&(flags.instanceColor.needsUpdate=true);   /* split down the middle of every stand, as a segregated ground is */
    bodies.instanceColor&&(bodies.instanceColor.needsUpdate=true)};
- const goals=[makeGoal(scene,-1),makeGoal(scene,1)];const crowdVideo=createCrowdVideo(scene);return{sun,goals,crowdCount:people.length,crowd,crowdVideo};
+ const goals=[makeGoal(scene,-1),makeGoal(scene,1)];const crowdVideo=createCrowdVideo(scene);
+ /* Not every night is the same night: the light, the air and the sky change with the stadium. The stand itself (a photograph and a film) is unlit and stays. */
+ const MOODS={night:{bg:0x070c15,fog:[0x0a111c,95,240],hemi:[0x3a5a7a,0x101a14,.8],sun:[0xe9f1ff,1.8],fill:[0xc3d6f5,.6],warm:[0xffd6a2,.3],exposure:.95},
+   dusk:{bg:0x1a1223,fog:[0x2b1d24,80,230],hemi:[0x8a6f6a,0x1a1812,.85],sun:[0xffd7a6,2.0],fill:[0xe0b4a0,.5],warm:[0xff9a62,.45],exposure:1.0},
+   mist:{bg:0x0e1620,fog:[0x1a2733,40,150],hemi:[0x58728a,0x142018,.9],sun:[0xd4e4f7,1.5],fill:[0xb5cde6,.7],warm:[0xffe0b8,.2],exposure:.92}};
+ const setMood=name=>{const m=MOODS[name]||MOODS.night;scene.background=new T.Color(m.bg);scene.fog=new T.Fog(...m.fog);hemi.color.set(m.hemi[0]);hemi.groundColor.set(m.hemi[1]);hemi.intensity=m.hemi[2];
+   sun.color.set(m.sun[0]);sun.intensity=m.sun[1];fill.color.set(m.fill[0]);fill.intensity=m.fill[1];warm.color.set(m.warm[0]);warm.intensity=m.warm[1];renderer.toneMappingExposure=m.exposure};
+ return{sun,goals,crowdCount:people.length,crowd,crowdVideo,setMood,moods:Object.keys(MOODS)};
 }
 function makeGoal(scene,side){const g=new T.Group();g.position.x=side*52.5;g.scale.x=side;scene.add(g);const post=mat(0xf5f5e8,{roughness:.45});for(const z of [-3.66,3.66]){tube(g,[0,0,z],[0,2.44,z],.065,post);tube(g,[0,2.44,z],[2.1,1.9,z],.035,post);tube(g,[2.1,1.9,z],[2.1,0,z],.035,post)}tube(g,[0,2.44,-3.66],[0,2.44,3.66],.065,post);
  const pos=[];const push=(a,b)=>pos.push(...a,...b);for(let z=-3.66;z<=3.67;z+=.22){push([2.1,0,z],[2.1,1.9,z]);push([0,2.44,z],[2.1,1.9,z])}for(let y=0;y<=1.91;y+=.2)push([2.1,y,-3.66],[2.1,y,3.66]);for(const z of [-3.66,3.66]){for(let x=0;x<=2.11;x+=.21)push([x,0,z],[x,2.44-x*.257,z]);for(let y=0;y<=2.4;y+=.2)push([0,y,z],[2.1,Math.min(y,1.9),z])}for(let x=0;x<=2.11;x+=.21)push([x,2.44-x*.257,-3.66],[x,2.44-x*.257,3.66]);const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(pos,3));const net=new T.LineSegments(geo,new T.LineBasicMaterial({color:0xe2e9e4,transparent:true,opacity:.52}));g.add(net);const base=Float32Array.from(pos);return {net,base,group:g};}
-export function animateNet(goal,t,hitZ){const a=goal.net.geometry.attributes.position;for(let i=0;i<a.count;i++){const j=i*3,x=goal.base[j],y=goal.base[j+1],z=goal.base[j+2];const wave=t>0&&t<3?Math.sin(t*18-Math.abs(z-hitZ)*2)*Math.exp(-t*2)*Math.exp(-Math.abs(z-hitZ)*.8)*.32:0;a.setXYZ(i,x+(x>1.8?wave:0),y,z)}a.needsUpdate=true;}
+/** The net takes the ball: a wave of depth that spreads from where it hit (hitZ, hitY metres), `amp` 1 = a normal shot, and a
+ *  bulge that follows the ball into the back of the goal. t = seconds since the ball crossed the line (< 0: at rest). */
+export function animateNet(goal,t,hitZ,amp=1,hitY=1.2){const a=goal.net.geometry.attributes.position;for(let i=0;i<a.count;i++){const j=i*3,x=goal.base[j],y=goal.base[j+1],z=goal.base[j+2];
+  const dz=Math.abs(z-hitZ),dy=Math.abs(y-hitY);let wave=0,sag=0;
+  if(t>0&&t<3){const decay=Math.exp(-t*1.7);wave=Math.sin(t*17-dz*2.1)*decay*Math.exp(-dz*.7)*Math.exp(-dy*.35)*.34*amp;
+    sag=Math.min(1,t*9)*decay*Math.exp(-dz*.9)*Math.exp(-dy*.55)*.30*amp}   // the whole mesh gives way where the ball arrived, then shivers back
+  a.setXYZ(i,x+(x>1.8?wave+sag:x>.6?(wave+sag)*.35:0),y,z)}a.needsUpdate=true;}
 

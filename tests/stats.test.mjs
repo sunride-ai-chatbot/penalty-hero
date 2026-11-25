@@ -1,0 +1,11 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {emptyStats,parseStats,recordKick,recordDuel,recordSurvival,recordTournament,recordDaily,dayKey,dayBefore} from '../src/core/stats.js';
+test('stats: kicks, duels, streaks, survival and the cup',()=>{const s=emptyStats();recordKick(s,{iKick:true,how:'goal'});recordKick(s,{iKick:true,how:'save'});recordKick(s,{iKick:false,how:'save'});recordKick(s,{iKick:false,how:'goal'});
+  assert.deepEqual([s.shots,s.goals,s.faced,s.saves],[2,1,2,1]);recordDuel(s,{won:true});recordDuel(s,{won:true});recordDuel(s,{won:false});recordDuel(s,{won:true});
+  assert.deepEqual([s.played,s.wins,s.streak,s.bestStreak],[4,3,1,2]);assert.equal(recordSurvival(s,4),true);assert.equal(recordSurvival(s,3),false);assert.equal(s.survBest,4);assert.equal(s.survRuns,2);
+  recordTournament(s,2);recordTournament(s,3);assert.deepEqual([s.tourPlayed,s.tourWins,s.tourBest],[2,1,3])});
+test('daily challenge: only the first try of a day counts; a streak needs consecutive days',()=>{const s=emptyStats();assert.equal(dayBefore('2026-03-01'),'2026-02-28');assert.equal(dayBefore('2026-01-01'),'2025-12-31');
+  assert.equal(recordDaily(s,'2026-11-24',3),true);assert.equal(recordDaily(s,'2026-11-24',5),false);assert.equal(s.daily.scores['2026-11-24'],3);
+  recordDaily(s,'2026-11-25',4);assert.equal(s.daily.streak,2);recordDaily(s,'2026-11-27',5);assert.equal(s.daily.streak,1);assert.equal(s.daily.best,5);assert.equal(s.daily.total,12);assert.match(dayKey(),/^\d{4}-\d{2}-\d{2}$/)});
+test('stats from storage: garbage is ignored, numbers are bounded',()=>{assert.deepEqual(parseStats('not json'),emptyStats());assert.deepEqual(parseStats(null),emptyStats());
+  const s=parseStats(JSON.stringify({played:-5,wins:'7',goals:2.9,daily:{scores:{'2026-11-24':99,'x':3},last:'bad'}}));assert.equal(s.played,0);assert.equal(s.wins,7);assert.equal(s.goals,2);assert.equal(s.daily.scores['2026-11-24'],5);assert.equal(s.daily.scores.x,undefined);assert.equal(s.daily.last,'')});

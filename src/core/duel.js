@@ -6,6 +6,10 @@ export function turnOf(d){const n=d.log.length;const side=n%2===0?d.first:(d.fir
 /** Record kick k. Returns false (and changes nothing) for a repeat, an old kick, a kick from the future, or a finished duel. */
 export function recordKick(d,k,out){if(d.winner||k!==d.log.length)return false;const {side}=turnOf(d);const goal=out==='goal'?1:0;
   d.kicks[side].push(goal);d.log.push({k,side,goal});d.winner=shootoutWinner(d.kicks.a,d.kicks.b);return true}
+/** 1 when this kick can decide the shoot-out (a goal or a miss ends it) or it is sudden death, else 0: the marker runs faster under pressure. */
+export function pressureOf(d){if(d.winner)return 0;const t=turnOf(d);const after=goal=>{const k={a:[...d.kicks.a],b:[...d.kicks.b]};k[t.side].push(goal);return shootoutWinner(k.a,k.b)};return after(1)||after(0)||t.sudden?1:0}
+/** Would this kick, with this outcome, end the shoot-out? (the winning kick gets the replay) */
+export function endsDuel(d,goal){const t=turnOf(d);const k={a:[...d.kicks.a],b:[...d.kicks.b]};k[t.side].push(goal?1:0);return !!shootoutWinner(k.a,k.b)}
 export const scoreOf=d=>({a:d.kicks.a.reduce((t,v)=>t+v,0),b:d.kicks.b.reduce((t,v)=>t+v,0)});
 /** The player (index into side.order) for a side's n-th kick: the order repeats after everyone has kicked. */
 export const takerIndex=(orderLength,n)=>n%Math.max(1,orderLength);

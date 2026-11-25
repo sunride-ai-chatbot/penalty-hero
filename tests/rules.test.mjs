@@ -76,3 +76,35 @@ test('shoot-out: five each, early finish, sudden death at equal kicks',()=>{
 test('goal calls: all ten before any repeat; the word depends on which side I am',()=>{
   const bag=makeCallBag(makeRng(3));const first=new Set();for(let i=0;i<10;i++)first.add(bag());assert.equal(first.size,10);assert.deepEqual([...first].sort(),GOAL_CALLS.slice().sort());
   assert.equal(resultWord('goal',true,false,()=>'GOAL!').good,true);assert.equal(resultWord('goal',false,false,bag).good,false);assert.equal(resultWord('save',false,true,bag).good,true);assert.equal(resultWord('save',true,false,bag).good,false);assert.equal(resultWord('off',false,false,bag).good,true)});
+
+/* ---- rules 12: the dive goes to a point, a ball can bend, the frame can let it in, the last kick runs faster ---- */
+import {leftFooted,pointOfDive,keeperPlan as plan12} from '../src/core/rules.js';
+import {pressureOf,endsDuel} from '../src/core/duel.js';
+test('the keeper goes to the point the ring was released on, not to a zone: a ball there is saved far more often than one a metre away',()=>{
+  const rate=(bx)=>{let s=0;for(let i=0;i<3000;i++)if(resolveKick({aim:{x:bx,y:1.2},meter:.73,shotSkill:80,keeperSkill:80,dive:{x:-1.9,y:1.2},rng:makeRng('pt'+i)}).how==='save')s++;return s/3000};
+  const at=rate(-1.9),near=rate(-2.9),far=rate(1.9);assert.ok(at>near+.1,'at the ring '+at+' vs a metre outside '+near);assert.ok(near>=far&&far<.02,'the other side is never reached ('+far+')');
+  const p=plan12({dive:{x:-1.4,y:.5},x:2,y:1,power:90,keeperSkill:80});assert.equal(p.col,-1);assert.ok(Math.abs(p.z+1.4)<.01,'he stops at the ring: '+p.z);assert.equal(p.handY,.5);
+  const mid=plan12({dive:{x:.5,y:1.3},x:2,y:1,power:90,keeperSkill:80});assert.equal(mid.col,0);assert.ok(Math.abs(mid.z)<=.4);
+  assert.deepEqual(pointOfDive('UL'),{x:-2.6,y:1.95});assert.deepEqual(pointOfDive({x:9,y:-4}),{x:3.5,y:.15});assert.deepEqual(pointOfDive(undefined),{x:0,y:1.2})});
+test('a zone name still works for old callers, and the computer dives to a point',()=>{
+  const a=resolveKick({aim:{x:2.2,y:1.2},meter:.73,shotSkill:80,keeperSkill:80,dive:'R',rng:makeRng('z1')});assert.ok(['goal','save'].includes(a.how));
+  for(let i=0;i<50;i++){const d=aiDive(75,makeRng(i));assert.ok(Number.isFinite(d.x)&&Number.isFinite(d.y)&&Math.abs(d.x)<=3.2&&d.y>=.3&&d.y<=2.2)}});
+test('curl: the same inputs bend the same way, it widens the scatter and shortens his reach',()=>{
+  const base={aim:{x:2.1,y:1.1},meter:.73,shotSkill:85,keeperSkill:85,dive:{x:2.1,y:1.1}};let s0=0,s1=0,sd0=0,sd1=0;
+  for(let i=0;i<4000;i++){const a=resolveKick({...base,curl:0,rng:makeRng('c'+i)}),b=resolveKick({...base,curl:1,rng:makeRng('c'+i)});if(a.how==='save')s0++;if(b.how==='save')s1++;sd0+=Math.abs(a.x-2.1);sd1+=Math.abs(b.x-2.1);assert.equal(b.curl,1);assert.equal(a.curl,0)}
+  assert.ok(s1<s0,'saves '+s0+' straight vs '+s1+' bent');assert.ok(sd1>sd0,'wider scatter when bent');
+  assert.deepEqual(resolveKick({...base,curl:1,rng:makeRng('same')}),resolveKick({...base,curl:1,rng:makeRng('same')}));assert.equal(resolveKick({...base,curl:-7,rng:makeRng(1)}).curl,-1)});
+test('the frame: from the inside a ball that hits the post sometimes goes in, from the outside never',()=>{let inn=0,out=0;const N=4000;
+  for(let i=0;i<N;i++){const r=resolveKick({aim:{x:3.66,y:1},meter:.73,shotSkill:99,keeperSkill:1,dive:'C',rng:makeRng('pi'+i)});
+    if(r.post){assert.equal(r.how,'goal');assert.ok(Math.abs(r.x)<=3.66&&r.y<=2.44,'only from the inside: '+r.x);inn++}if(r.how==='post'){assert.ok(Math.abs(r.x)>3.61||r.y>2.39||Math.abs(r.x)<=3.66);out++}}
+  assert.ok(inn>20,'some drop in ('+inn+')');assert.ok(out>20,'most stay out ('+out+')')});
+test('the look of the run-up comes from the seed (same on both phones); the foot is a trait of the player, about one in four left-footed',()=>{let st=0;const runs=[0,0,0];
+  for(let i=0;i<2000;i++){const r=resolveKick({aim:{x:1,y:1},meter:.73,shotSkill:80,keeperSkill:80,dive:'C',rng:makeRng('s'+i)}),r2=resolveKick({aim:{x:1,y:1},meter:.73,shotSkill:80,keeperSkill:80,dive:'C',rng:makeRng('s'+i)});assert.deepEqual(r.style,r2.style);
+    if(r.style.stutter)st++;runs[r.style.run]++}
+  assert.ok(st>450&&st<750,'stutter '+st);assert.ok(runs.every(n=>n>300),'runs '+runs);
+  let left=0;for(let i=0;i<4000;i++)if(leftFooted('p'+i))left++;assert.ok(left>800&&left<1300,'left-footed '+left);assert.equal(leftFooted('x1'),leftFooted('x1'))});
+test('the style never changes where the ball goes: x, y and the outcome are the same as before the style draws',()=>{const a=resolveKick({aim:{x:-1.5,y:.7},meter:.7,shotSkill:70,keeperSkill:75,dive:{x:1,y:1},rng:makeRng('o1')});assert.ok(a.x<0&&a.y<2)});
+test('pressure: the deciding kick and sudden death run the marker 12% faster, nothing else changes',()=>{const w0=timingWindow(80,75),w1=timingWindow(80,75,1);assert.equal(w1.width,w0.width);assert.ok(Math.abs(w1.speed/w0.speed-1.12)<.01);assert.equal(meterSpeed(40,99,1),+(1.35*1.12).toFixed(3));
+  const d=createDuel('a');assert.equal(pressureOf(d),0);for(const o of ['goal','goal','goal','goal','goal','miss','miss','miss'])recordKick(d,d.log.length,o);   // a: 5 goals … after 8 kicks a has 4 b has 0
+  assert.equal(d.winner,null);assert.equal(pressureOf(d),1,'a goal now settles it');assert.equal(endsDuel(d,true),true);assert.equal(endsDuel(d,false),false);
+  const e=createDuel('a');for(let i=0;i<10;i++)recordKick(e,i,'goal');assert.equal(e.winner,null);assert.equal(pressureOf(e),1,'sudden death');assert.equal(endsDuel(e,true),false)});

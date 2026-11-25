@@ -3,7 +3,7 @@
 // and the picture only draws what this module decided.
 //
 // Goal coordinates: x metres from the middle of the goal, positive = right as the taker sees it; y metres above the grass.
-export const RULES_VERSION=11;
+export const RULES_VERSION=12;
 export const GOAL={halfWidth:3.66,height:2.44,spot:11};
 export const METER_CENTER=.73;
 export const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
@@ -21,15 +21,15 @@ export const gauss=rng=>(rng()+rng()+rng()+rng()-2)*1.732;   // close to a unit 
  * How fast the marker travels, from the match-up: a strong finisher against a weak keeper gets a slower marker (easier
  * to stop in the window), a weak finisher against a strong keeper a faster one. 1 = evenly matched.
  */
-export const meterSpeed=(shotSkill,keeperSkill=70)=>+clamp(1-(shotSkill-keeperSkill)*.008,.72,1.35).toFixed(3);
+export const meterSpeed=(shotSkill,keeperSkill=70,pressure=0)=>+(clamp(1-(shotSkill-keeperSkill)*.008,.72,1.35)*(1+.12*clamp(pressure))).toFixed(3);   // pressure: the deciding kick of a shoot-out runs the marker 12% faster
 /** Where the marker is after holding for `ms`: rises from 0.08 to 1 and falls back, the source game's curve, at `speed`. */
 export const meterPosition=(ms,speed=1)=>.08+.92*(1-Math.cos(Math.max(0,ms)*.0036*speed))*.5;
 /**
  * The white window, from the same match-up and in every mode: wider for a better finisher and against a weaker keeper,
  * narrower for a weak finisher and against a strong keeper.
  */
-export function timingWindow(shotSkill,keeperSkill=70){const f=clamp((shotSkill-35)/59,0,1);
-  const width=clamp(.03+.09*f-(keeperSkill-70)*.0013,.02,.17);return {center:METER_CENTER,width,from:METER_CENTER-width/2,to:METER_CENTER+width/2,speed:meterSpeed(shotSkill,keeperSkill)}}
+export function timingWindow(shotSkill,keeperSkill=70,pressure=0){const f=clamp((shotSkill-35)/59,0,1);
+  const width=clamp(.03+.09*f-(keeperSkill-70)*.0013,.02,.17);return {center:METER_CENTER,width,from:METER_CENTER-width/2,to:METER_CENTER+width/2,speed:meterSpeed(shotSkill,keeperSkill,pressure)}}
 export const powerOf=meter=>Math.round(clamp(meter*100,30,100));
 export const flightSeconds=power=>48/clamp(power,30,100);   // 30% ≈ 1.60 s, 100% ≈ 0.48 s
 /** How far the sight sways around the finger, in metres: little for a finisher, a lot for a defender or a keeper. */
@@ -54,13 +54,18 @@ const HAND_Y=[.35,1.15,1.95];
  * A hard ball leaves no time: he goes where he chose. A slow ball (a second or more in the air) can be read while he is
  * still on his feet, so he sets off late toward the ball. Either way he commits once and never changes side in the air.
  */
-export function keeperPlan({dive,x,y,power,keeperSkill}){const p=clamp(power,30,100),s=clamp(keeperSkill,1,100)/100,soft=(100-p)/70,T=flightSeconds(p);
-  const read=T>=1;let col=dirCol(dive||'C'),row=dirRow(dive||'C');
-  if(read){col=Math.abs(x)<.9?0:Math.sign(x);row=y>1.6?2:y<.82?0:1}
+export function keeperPlan({dive,x,y,power,keeperSkill,curl=0}){const p=clamp(power,30,100),s=clamp(keeperSkill,1,100)/100,soft=(100-p)/70,T=flightSeconds(p);
+  /* `dive` is a point on the goal {x,y} (where the ring was released) or, for the old nine-zone callers, a zone name */
+  const pt=dive&&typeof dive==='object'?{x:clamp(+dive.x||0,-3.5,3.5),y:clamp(+dive.y||1.2,.15,2.3)}:null;
+  const zone=pt?zoneOf(pt.x,pt.y):(dive||'C');let col=dirCol(zone),row=dirRow(zone),handY=pt?clamp(pt.y,.3,2.05):HAND_Y[row],aimX=pt?Math.abs(pt.x):2.55;
+  const read=T>=1;
+  if(read){col=Math.abs(x)<.9?0:Math.sign(x);row=y>1.6?2:y<.82?0:1;handY=HAND_Y[row];aimX=Math.min(2.75,Math.abs(x))}
   const delay=read?.40:.30-.13*s;const air=Math.max(0,T-delay);
-  const z=col*Math.min(read?Math.min(2.75,Math.abs(x)):2.55,air*(4.6+s));
+  const run=air*(4.6+s);
+  const z=col?col*Math.min(pt&&!read?Math.min(2.9,Math.max(.95,aimX)):aimX,run):(pt&&!read?clamp(pt.x*.45,-.4,.4):0);
   const dir=(row===2?'U':row===0?'D':'')+(col<0?'L':col>0?'R':'')||'C';
-  return {dir,col,row,z,handY:HAND_Y[row],delay,air,read,flight:T,reach:.62+.20*soft+.18*s,vReach:(col?.95:1.05)+.25*s+.25*soft,soft,skill:s}}
+  const curlCut=curl?.88:1;   // a bending ball dips late: harder to reach
+  return {dir,col,row,z,handY,delay,air,read,flight:T,reach:(.62+.20*soft+.18*s)*curlCut,vReach:((col?.95:1.05)+.25*s+.25*soft)*curlCut,soft,skill:s}}
 
 /**
  * One kick, start to finish.
@@ -70,16 +75,22 @@ export function keeperPlan({dive,x,y,power,keeperSkill}){const p=clamp(power,30,
  *   rng        seeded generator; two phones with the same seed get the same kick
  * Returns where the ball really goes and how it ends: how = 'goal' | 'save' | 'post' | 'off'.
  */
-export function resolveKick({aim,meter,shotSkill,keeperSkill,dive,rng}){
-  const win=timingWindow(shotSkill,keeperSkill),sway=swayOf(shotSkill),power=powerOf(meter);
+export function resolveKick({aim,meter,shotSkill,keeperSkill,dive,rng,curl=0}){
+  curl=curl>0?1:curl<0?-1:0;
+  const win=timingWindow(shotSkill,keeperSkill),sway=swayOf(shotSkill)*(curl?1.22:1),power=powerOf(meter);   // a bending ball is harder to place
   const error=Math.max(0,Math.abs(meter-win.center)-win.width/2);     // 0 inside the white window, grows steadily outside
   const wild=Math.min(1.8,error*9);                                    // mistimed: the further from the window, the wilder
   let x=aim.x+gauss(rng)*(sway*.30+wild);
   let y=aim.y+gauss(rng)*(sway*.24+wild*.62)+(meter>win.to?Math.min(1.5,error*6):0);   // over-hit balls rise
   x=+clamp(x,-6,6).toFixed(2);y=+clamp(y,.11,4).toFixed(2);
-  const base={x,y,power,flight:+flightSeconds(power).toFixed(3),timing:{error:+error.toFixed(4),inWindow:error===0}};
-  const k=keeperPlan({dive,x,y,power,keeperSkill});const keeper={dir:k.dir,z:+k.z.toFixed(2),row:k.row,delay:+k.delay.toFixed(3),read:k.read};
-  const frame=frameOf(x,y),rollSave=rng(),rollCatch=rng();          // always drawn, so the stream stays aligned
+  const base={x,y,power,curl,flight:+flightSeconds(power).toFixed(3),timing:{error:+error.toFixed(4),inWindow:error===0}};
+  const k=keeperPlan({dive,x,y,power,keeperSkill,curl});const keeper={dir:k.dir,z:+k.z.toFixed(2),row:k.row,handY:+k.handY.toFixed(2),delay:+k.delay.toFixed(3),read:k.read};
+  const frame=frameOf(x,y),rollSave=rng(),rollCatch=rng(),rollPost=rng();          // always drawn, so the stream stays aligned
+  /* how the taker is drawn: length of the run-up, a pause before the strike. Presentation only, but from the same seed on both phones. */
+  rng();const b=rng(),c=rng();const style={run:b<.3?0:b<.75?1:2,stutter:c<.3};base.style=style;
+  if(frame==='post'){   // the ball hits the frame: from the inside it can still drop over the line
+    if(Math.abs(x)<=GOAL.halfWidth&&y<=GOAL.height&&rollPost<.3)return {...base,how:'goal',post:true,out:'goal',catch:false,keeper};
+    return {...base,how:'post',out:'miss',catch:false,keeper}}
   if(frame!=='in')return {...base,how:frame,out:'miss',catch:false,keeper};
   const dist=Math.abs(x-k.z),up=Math.abs(y-k.handY),reachable=dist<=k.reach&&up<=k.vReach;
   const pSave=reachable?clamp((.74+.24*k.soft)*(.62+.38*k.skill)*(1-.30*dist/k.reach)*(1-.45*up/k.vReach)-(shotSkill-70)*.003,.02,.97):0;
@@ -93,9 +104,17 @@ export function aiKick(shotSkill,rng){const q=clamp((shotSkill-50)/45,0,1);
   const w=[['UL',.10+.09*q],['UR',.10+.09*q],['L',.11],['R',.11],['DL',.19],['DR',.19],['U',.04],['C',.04],['D',.08-.04*q]];
   let r=rng()*w.reduce((t,e)=>t+e[1],0),zone='DL';for(const [k,v] of w){r-=v;if(r<=0){zone=k;break}}
   const c=ZONE[zone];const wide=dirCol(zone)*(.25+.35*q);          // good finishers go nearer the post
-  return {zone,aim:{x:+(c[0]+wide+gauss(rng)*(.34-.14*q)).toFixed(2),y:+clamp(c[1]+gauss(rng)*(.24-.08*q),.2,2.5).toFixed(2)},meter:+clamp(METER_CENTER+gauss(rng)*(.075-.045*q),.3,1).toFixed(3)}}
-/** The computer's dive, chosen before the kick: it cannot see the ball. */
-export function aiDive(keeperSkill,rng){const r=rng(),col=r<.41?'L':r<.82?'R':'';const h=rng();const row=col?(h<.42?'D':h<.78?'':'U'):(h<.2?'U':h<.4?'D':'');return (row+col)||'C'}
+  return {zone,aim:{x:+(c[0]+wide+gauss(rng)*(.34-.14*q)).toFixed(2),y:+clamp(c[1]+gauss(rng)*(.24-.08*q),.2,2.5).toFixed(2)},meter:+clamp(METER_CENTER+gauss(rng)*(.075-.045*q),.3,1).toFixed(3),curl:rng()<.10+.10*q?(rng()<.5?-1:1):0}}
+/** The computer's dive, chosen before the kick: it cannot see the ball. A point on the goal, like the one a person drags the ring to. */
+export function aiDive(keeperSkill,rng){const r=rng(),col=r<.41?'L':r<.82?'R':'';const h=rng();const row=col?(h<.42?'D':h<.78?'':'U'):(h<.2?'U':h<.4?'D':'');const z=ZONE[(row+col)||'C'];
+  return {x:+clamp(z[0]*.97+gauss(rng)*.28,-3.2,3.2).toFixed(2),y:+clamp(z[1]+gauss(rng)*.2,.3,2.2).toFixed(2)}}
+
+/** Which foot a player uses: a trait of the player (his id), about one in four is left-footed. The film shows a right foot; a left-footer is the same film mirrored. */
+export const leftFooted=id=>hash32('foot:'+String(id))%100<26;
+/** The light of the stadium (night, dusk, mist), from the home club: the same on both phones. */
+export const moodOf=id=>['night','night','dusk','mist'][hash32('mood:'+String(id))%4];
+/** A zone name (or a point) as the point the keeper's ring stands on. */
+export const pointOfDive=d=>d&&typeof d==='object'?{x:+clamp(+d.x||0,-3.5,3.5).toFixed(2),y:+clamp(+d.y||1.2,.15,2.3).toFixed(2)}:{x:(ZONE[d]||ZONE.C)[0],y:(ZONE[d]||ZONE.C)[1]};
 
 /* ---- the shoot-out ---- */
 /** 'a' | 'b' | null. Five each, over early when one side cannot catch up, then sudden death at equal kicks. */

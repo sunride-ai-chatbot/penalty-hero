@@ -1,6 +1,6 @@
 // The network duel: two phones, one room, no trusted server.
 //
-// Protocol v2 (not compatible with the source game's v1 — the room prefix differs, so the two never meet):
+// Protocol v3 (not compatible with the source game's v1 — the room prefix differs, so the two never meet):
 //   hi     guest -> host   {team, name, rules, catalog}           repeated until `start` arrives
 //   start  host  -> guest  {to, n, a:{team,name,hash}, b:{team,name,hash}, first, salt}
 //   c      both            {n, k, h}        commitment for kick k: h = SHA-256(choice + '|' + nonce)
@@ -13,15 +13,15 @@
 // resolveKick(); neither side can see the other's choice before committing its own, and a reveal that does not match
 // its commitment ends the duel. This keeps honest phones in agreement and stops peeking. It is not a referee: a
 // modified client can still commit any aim it likes. A server-side resolver would be needed to rule that out.
-import {DIRS,RULES_VERSION} from '../core/rules.js';
-export const PROTOCOL=2;
+import {RULES_VERSION} from '../core/rules.js';
+export const PROTOCOL=3;
 const hex=buf=>[...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
 export async function sha256(text){return hex(await globalThis.crypto.subtle.digest('SHA-256',new TextEncoder().encode(text)))}
 export function randomNonce(){const a=new Uint8Array(16);globalThis.crypto.getRandomValues(a);return hex(a)}
-export const encodeChoice=c=>c.d?('d:'+c.d):('k:'+c.x.toFixed(2)+':'+c.y.toFixed(2)+':'+c.m.toFixed(3));
+export const encodeChoice=c=>c.d?('d:'+c.d.x.toFixed(2)+':'+c.d.y.toFixed(2)):('k:'+c.x.toFixed(2)+':'+c.y.toFixed(2)+':'+c.m.toFixed(3)+':'+(c.c||0));
 export function validChoice(c,kicker){if(!c||typeof c!=='object')return false;
-  if(kicker)return Number.isFinite(c.x)&&Number.isFinite(c.y)&&Number.isFinite(c.m)&&Math.abs(c.x)<=6&&c.y>=0&&c.y<=4&&c.m>=.05&&c.m<=1;
-  return DIRS.includes(c.d)}
+  if(kicker)return Number.isFinite(c.x)&&Number.isFinite(c.y)&&Number.isFinite(c.m)&&Math.abs(c.x)<=6&&c.y>=0&&c.y<=4&&c.m>=.05&&c.m<=1&&(c.c===0||c.c===1||c.c===-1);
+  return !!c.d&&typeof c.d==='object'&&Number.isFinite(c.d.x)&&Number.isFinite(c.d.y)&&Math.abs(c.d.x)<=3.5&&c.d.y>=.1&&c.d.y<=2.5}
 export const MSG={connecting:'מתחבר…',full:'החדר הזה כבר מלא',version:'הגרסאות של שני הטלפונים שונות. רעננו את המשחק בשניהם ונסו שוב.',mismatch:'הנתונים מהטלפון השני לא תואמים. המשחק הופסק.',left:'היריב עזב את המשחק',silent:'אין תשובה מהיריב. בדקו את החיבור ונסו שוב.',nobody:'אף אחד לא הצטרף לחדר',offline:'אין חיבור לאינטרנט. בדקו את החיבור ונסו שוב.',service:'שירות המשחק ברשת לא זמין כרגע. נסו שוב בעוד כמה דקות.'};
 
 /**
@@ -74,7 +74,7 @@ export function createRoom({connect,code,host,me,catalog,resolveTeam,on,timers={
   const api={id,code,host,get state(){return state},get peerName(){return peerName},get peerTeam(){return peerTeam},get wantAgain(){return wantAgain},get theirAgain(){return theirAgain},
     /** My choice for kick k ({x,y,m} when I kick, {d} when I keep). Resolves with both choices and the shared seed. */
     exchange(k,choice,iKick){return new Promise(async(resolve,reject)=>{if(closed||!duel)return reject(new Error(MSG.left));const K=kickOf(k);if(K.mine)return reject(new Error('kick '+k+' already played'));
-      const nonce=randomNonce();const clean=iKick?{x:+(+choice.x).toFixed(2),y:+(+choice.y).toFixed(2),m:+(+choice.m).toFixed(3)}:{d:choice.d};
+      const nonce=randomNonce();const clean=iKick?{x:+(+choice.x).toFixed(2),y:+(+choice.y).toFixed(2),m:+(+choice.m).toFixed(3),c:+choice.c>0?1:+choice.c<0?-1:0}:{d:{x:+(+choice.d.x).toFixed(2),y:+(+choice.d.y).toFixed(2)}};
       if(!validChoice(clean,iKick)){kicks.delete(k);return reject(new Error('invalid choice'))}
       K.mine={choice:clean,nonce,h:await sha256(encodeChoice(clean)+'|'+nonce)};K.iKick=iKick;K.resolve=resolve;K.reject=reject;if(closed)return reject(new Error(MSG.left));
       send({t:'c',n:duel.n,k,h:K.mine.h});step(k)})},

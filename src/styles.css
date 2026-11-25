@@ -97,3 +97,28 @@ input[type=text]:focus{outline:2px solid var(--go);outline-offset:1px;border-col
 .ar-chip{position:absolute;z-index:6;left:0;top:0;pointer-events:none;margin:-30px 0 0 0;padding:3px 10px;border-radius:999px;font-size:13px;font-weight:800;white-space:nowrap;translate:-50% 0;box-shadow:0 2px 8px rgba(0,0,0,.6)}
 .ar-chip.me{background:var(--gold);color:#22190a}.ar-chip.them{background:rgba(6,9,13,.82);color:var(--ink);border:1px solid var(--line)}.ar-chip[hidden]{display:none}
 @media (prefers-reduced-motion:reduce){.ar-role{transition:none}}
+
+/* ---- 1.2: curl switch, deciding-kick pressure, replay ---- */
+.ar-curl{position:absolute;z-index:10;left:50%;bottom:58px;transform:translateX(-50%);padding:7px 16px;border-radius:999px;border:0;font-weight:700;font-size:14px;line-height:1;font-family:inherit;color:#e9edf2;background:rgba(6,9,13,.7);box-shadow:0 0 0 1px rgba(255,255,255,.28);touch-action:manipulation;pointer-events:auto;cursor:pointer;min-height:36px}
+.ar-curl.on{color:#10151d;background:var(--gold);box-shadow:0 0 0 2px rgba(255,255,255,.55)}
+.ar-curl[hidden],.ar-replay[hidden]{display:none}
+.game-arena.i-kick .ar-hint{bottom:100px}
+.ar-pulse{position:absolute;inset:0;z-index:4;pointer-events:none;opacity:0;background:radial-gradient(ellipse at 50% 55%,rgba(0,0,0,0) 52%,rgba(200,30,45,.55) 100%)}
+.game-arena.pressure .ar-pulse{animation:heart 1.05s ease-in-out infinite}
+@keyframes heart{0%,100%{opacity:.12}14%{opacity:.6}28%{opacity:.18}42%{opacity:.5}70%{opacity:.12}}
+.game-arena.replaying::after{border-color:rgba(255,255,255,.35)}
+.ar-replay{position:absolute;z-index:11;top:10px;inset-inline-start:12px;padding:5px 12px;border-radius:8px;background:rgba(6,9,13,.78);color:#fff;display:flex;gap:8px;align-items:baseline;pointer-events:none;box-shadow:0 0 0 1px rgba(255,255,255,.3)}
+.ar-replay b{font-size:16px;letter-spacing:.04em;color:var(--gold)}.ar-replay span{font-size:11px;opacity:.8}
+.game-arena.replaying .ar-meter,.game-arena.replaying .ar-curl,.game-arena.replaying .ar-chip,.game-arena.replaying .ar-flash{display:none}
+@media (prefers-reduced-motion:reduce){.game-arena.pressure .ar-pulse{animation:none;opacity:.3}}
+
+/* ---- 1.2: more ways to play ---- */
+.more{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:12px}
+.chip{padding:9px 14px;min-height:40px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.07);color:var(--ink);font-weight:700;font-size:14px}
+.chip:active{background:rgba(255,255,255,.16)}
+.path{list-style:none;margin:0 0 14px;padding:0;display:grid;gap:6px;width:100%;max-width:420px}
+.path li{display:grid;grid-template-columns:76px 1fr auto;gap:8px;align-items:center;padding:8px 12px;border-radius:12px;background:rgba(255,255,255,.06);color:var(--muted);font-size:14px}
+.path li b{color:var(--ink)}.path li.done{opacity:.55;text-decoration:line-through}.path li.now{background:rgba(233,196,106,.16);color:var(--ink);box-shadow:0 0 0 1px var(--gold)}
+.versus.one{margin:0 0 12px;width:100%}
+.statlist{display:grid;gap:2px;padding:6px 14px}.stat{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);font-size:15px}.stat:last-child{border-bottom:0}.stat b{color:var(--gold)}
+.big{font-size:19px;margin:6px 0}.big b{color:var(--gold);font-size:26px}

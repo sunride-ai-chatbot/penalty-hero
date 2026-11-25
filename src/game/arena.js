@@ -4,7 +4,7 @@
 //   keeping  touch the goal and drag: a ring follows the finger, a dotted line runs from the keeper to it; release to
 //            commit to that part of the goal. No arrows and no icons on the screen.
 // Pointer Events with capture; pointercancel never kicks; every listener and timer dies with the AbortSignal.
-import {clamp,meterPosition,timingWindow,swayOf,swayAt,frameOf,zoneOf,ZONE,DIRS,aiKick,makeRng} from '../core/rules.js';
+import {clamp,meterPosition,timingWindow,swayOf,swayAt,frameOf,zoneOf,pointOfDive,ZONE,DIRS,aiKick,makeRng} from '../core/rules.js';
 const TOUCH_LIFT=56;                 // px: the sight rides above a finger so it is never hidden under it
 const DIR_NAME={UL:'למעלה שמאלה',U:'למעלה',UR:'למעלה ימינה',L:'שמאלה',C:'להישאר באמצע',R:'ימינה',DL:'למטה שמאלה',D:'למטה',DR:'למטה ימינה'};
 class Aborted extends Error{constructor(){super('aborted');this.name='AbortError'}}
@@ -17,9 +17,10 @@ export function createArena(host,{debug=false,audio=null,force2d=false}={}){
     <div class="ar-role" aria-live="assertive"></div><div class="ar-chip" hidden></div><div class="ar-flash" aria-live="assertive"></div><div class="ar-hint" aria-live="polite"></div>
     <div class="ar-sight" hidden><b></b></div><div class="ar-target" hidden></div><svg class="ar-pull" hidden aria-hidden="true"><line/></svg>
     <div class="ar-meter" dir="ltr" hidden aria-label="מד דיוק ועוצמה"><span class="ar-window"></span><i class="ar-marker"></i><em>חלש</em><em>חזק</em></div>
-    <div class="ar-timer" hidden aria-hidden="true"><i></i></div><div class="ar-a11y"></div>${debug?'<pre class="ar-debug" dir="ltr"></pre><div class="ar-zones"></div>':''}`;
-  const $=s=>host.querySelector(s),view=$('.ar-view'),loadEl=$('.ar-load'),flashEl=$('.ar-flash'),hintEl=$('.ar-hint'),sight=$('.ar-sight'),target=$('.ar-target'),pull=$('.ar-pull'),meter=$('.ar-meter'),timer=$('.ar-timer'),a11y=$('.ar-a11y');
-  let stage=null,disposed=false,flashT=0,roleT=0,debugT=0,lastInfo={};const rng=makeRng((Math.random()*2**32)>>>0);
+    <div class="ar-timer" hidden aria-hidden="true"><i></i></div><button type="button" class="ar-curl" hidden aria-live="polite"></button><div class="ar-replay" hidden><b>חזרה</b><span>גע כדי לדלג</span></div><div class="ar-pulse" aria-hidden="true"></div><div class="ar-a11y"></div>${debug?'<pre class="ar-debug" dir="ltr"></pre><div class="ar-zones"></div>':''}`;
+  const $=s=>host.querySelector(s),view=$('.ar-view'),loadEl=$('.ar-load'),flashEl=$('.ar-flash'),hintEl=$('.ar-hint'),sight=$('.ar-sight'),target=$('.ar-target'),pull=$('.ar-pull'),meter=$('.ar-meter'),timer=$('.ar-timer'),a11y=$('.ar-a11y'),curlBtn=$('.ar-curl'),replayEl=$('.ar-replay');
+  const CURL_TEXT={'0':'בעיטה ישרה','1':'עיקול ימינה ↷','-1':'עיקול שמאלה ↶'};
+  let stage=null,disposed=false,flashT=0,roleT=0,debugT=0,lastInfo={},curlPref=0;const rng=makeRng((Math.random()*2**32)>>>0);
   const stop=e=>e.preventDefault();host.addEventListener('contextmenu',stop);host.addEventListener('selectstart',stop);host.addEventListener('dragstart',stop);
   async function build(opts){loadEl.hidden=false;loadEl.textContent='טוען את האצטדיון…';
     if(stage){try{stage.dispose()}catch(e){}stage=null}
@@ -60,13 +61,15 @@ export function createArena(host,{debug=false,audio=null,force2d=false}={}){
     /**
      * The user kicks. Resolves {aim:{x,y}, meter, auto}. timeMs: after it the kick is taken for him.
      */
-    askKick({shotSkill,keeperSkill,timeMs=10000,signal}){const win=timingWindow(shotSkill,keeperSkill),amp=swayOf(shotSkill);
+    askKick({shotSkill,keeperSkill,pressure=0,timeMs=10000,signal}){const win=timingWindow(shotSkill,keeperSkill,pressure),amp=swayOf(shotSkill);
       return ask(signal,({on,finish,loop})=>{let aim={x:0,y:1.15},touched=false,pointer=null,heldAt=null;const ck=shownClock();
-        meter.hidden=false;sight.hidden=false;timer.hidden=false;const w=meter.querySelector('.ar-window'),mk=meter.querySelector('.ar-marker');w.style.left=(win.from*100).toFixed(2)+'%';w.style.width=(win.width*100).toFixed(2)+'%';
+        meter.hidden=false;sight.hidden=false;timer.hidden=false;const paintCurl=()=>{curlBtn.textContent=CURL_TEXT[curlPref];curlBtn.classList.toggle('on',curlPref!==0)};paintCurl();curlBtn.hidden=false;
+        on(curlBtn,'click',e=>{e.preventDefault();e.stopPropagation();curlPref=curlPref===0?1:curlPref===1?-1:0;paintCurl();audio?.tap()});on(curlBtn,'pointerdown',e=>e.stopPropagation());
+        const w=meter.querySelector('.ar-window'),mk=meter.querySelector('.ar-marker');w.style.left=(win.from*100).toFixed(2)+'%';w.style.width=(win.width*100).toFixed(2)+'%';
         const cur=()=>{const s=swayAt(ck.ms/1000,amp);return {x:aim.x+s.dx,y:Math.max(.05,aim.y+s.dy)}};
         const pos=()=>heldAt===null?null:meterPosition(performance.now()-heldAt,win.speed);
-        const fire=auto=>{let c=cur(),m=pos();if(auto&&!touched){const k=aiKick(shotSkill,rng);c=k.aim;m=k.meter}else if(m===null)m=aiKick(shotSkill,rng).meter;
-          finish({aim:{x:+c.x.toFixed(2),y:+c.y.toFixed(2)},meter:+m.toFixed(3),auto:!!auto})};
+        const fire=auto=>{let c=cur(),m=pos(),curl=curlPref;if(auto&&!touched){const k=aiKick(shotSkill,rng);c=k.aim;m=k.meter;curl=k.curl||0}else if(m===null)m=aiKick(shotSkill,rng).meter;
+          finish({aim:{x:+c.x.toFixed(2),y:+c.y.toFixed(2)},meter:+m.toFixed(3),curl,auto:!!auto})};
         const setAim=e=>{const r=host.getBoundingClientRect();const [x,y]=stage.fromScreen(e.clientX-r.left,e.clientY-r.top-(e.pointerType==='touch'?TOUCH_LIFT:0));aim={x:clamp(x,-4.6,4.6),y:clamp(y,.12,3.2)};touched=true};
         on(host,'pointerdown',e=>{if(pointer!==null||e.button>0||e.target.closest('button'))return;e.preventDefault();pointer=e.pointerId;heldAt=performance.now();try{host.setPointerCapture(e.pointerId)}catch(x){}setAim(e);audio?.unlock()});
         on(host,'pointermove',e=>{if(e.pointerId===pointer){e.preventDefault();setAim(e)}});
@@ -80,10 +83,10 @@ export function createArena(host,{debug=false,audio=null,force2d=false}={}){
         loop(()=>{const left=1-ck.tick()/timeMs;timer.firstElementChild.style.transform=`scaleX(${Math.max(0,left).toFixed(3)})`;const m=pos();mk.style.left=((m??0)*100).toFixed(2)+'%';meter.classList.toggle('live',m!==null);meter.classList.toggle('in',m!==null&&m>=win.from&&m<=win.to);
           const c=cur();place(sight,c.x,c.y);sight.classList.toggle('out',frameOf(c.x,c.y)!=='in');if(left<=0)fire(true)});
         try{host.focus({preventScroll:true})}catch(e){}
-        api._kick=(x,y,m)=>finish({aim:{x,y},meter:m,auto:false});   // tests
-        return()=>{meter.hidden=sight.hidden=timer.hidden=true;meter.classList.remove('live','in');a11y.innerHTML='';api._kick=null;try{pointer!==null&&host.releasePointerCapture(pointer)}catch(e){}}})},
+        api._kick=(x,y,m,c=0)=>finish({aim:{x,y},meter:m,curl:c,auto:false});   // tests
+        return()=>{curlBtn.hidden=true;meter.hidden=sight.hidden=timer.hidden=true;meter.classList.remove('live','in');a11y.innerHTML='';api._kick=null;try{pointer!==null&&host.releasePointerCapture(pointer)}catch(e){}}})},
     /**
-     * The user keeps goal. Resolves {d, auto}: committed on release after a pull; standing in the middle when time runs out.
+     * The user keeps goal. Resolves {d:{x,y}, auto}: the point where the ring was released (the keeper goes exactly there); the middle when time runs out.
      */
     askDive({timeMs=5000,signal}){return ask(signal,({on,finish,loop})=>{let pointer=null,cur=null,aim=null;const ck=shownClock();const line=pull.firstElementChild;timer.hidden=false;
         // A ring on the goal follows the finger, with a dotted line from the keeper to it: that is where he will go.
@@ -93,22 +96,33 @@ export function createArena(host,{debug=false,audio=null,force2d=false}={}){
         const point=e=>{const r=host.getBoundingClientRect();const [x,y]=stage.fromScreen(e.clientX-r.left,e.clientY-r.top-(e.pointerType==='touch'?TOUCH_LIFT:0));set(x,y)};
         on(host,'pointerdown',e=>{if(pointer!==null||e.button>0||e.target.closest('button'))return;e.preventDefault();pointer=e.pointerId;try{host.setPointerCapture(e.pointerId)}catch(x){}point(e);audio?.unlock()});
         on(host,'pointermove',e=>{if(e.pointerId!==pointer)return;e.preventDefault();point(e)});
-        on(host,'pointerup',e=>{if(e.pointerId!==pointer)return;e.preventDefault();pointer=null;point(e);finish({d:cur,auto:false})});   // released: committed
+        on(host,'pointerup',e=>{if(e.pointerId!==pointer)return;e.preventDefault();pointer=null;point(e);finish({d:pointOfDive(aim),auto:false})});   // released: committed
         on(host,'pointercancel',e=>{if(e.pointerId===pointer)pointer=null});                                                        // the system took the touch: nothing is chosen
         on(host,'keydown',e=>{const a=aim||{x:0,y:1.2};if(e.key==='ArrowLeft')set(a.x-2.6,a.y);else if(e.key==='ArrowRight')set(a.x+2.6,a.y);else if(e.key==='ArrowUp')set(a.x,a.y+.75);else if(e.key==='ArrowDown')set(a.x,a.y-.75);
-          else if((e.key==='Enter'||e.key===' ')&&!e.repeat){e.preventDefault();return finish({d:cur||'C',auto:false})}else return;e.preventDefault()});
+          else if((e.key==='Enter'||e.key===' ')&&!e.repeat){e.preventDefault();return finish({d:pointOfDive(aim||{x:0,y:1.2}),auto:false})}else return;e.preventDefault()});
         a11y.innerHTML=DIRS.map(d=>`<button type="button" class="sr" data-d="${d}">זינוק ${DIR_NAME[d]}</button>`).join('');
-        on(a11y,'click',e=>{const b=e.target.closest('[data-d]');if(b)finish({d:b.dataset.d,auto:false})});
-        loop(()=>{const left=1-ck.tick()/timeMs;timer.firstElementChild.style.transform=`scaleX(${Math.max(0,left).toFixed(3)})`;draw();if(left<=0)finish({d:cur||'C',auto:true})});
+        on(a11y,'click',e=>{const b=e.target.closest('[data-d]');if(b)finish({d:pointOfDive(b.dataset.d),auto:false})});
+        loop(()=>{const left=1-ck.tick()/timeMs;timer.firstElementChild.style.transform=`scaleX(${Math.max(0,left).toFixed(3)})`;draw();if(left<=0)finish({d:pointOfDive(aim||{x:0,y:1.2}),auto:true})});
         try{host.focus({preventScroll:true})}catch(e){}
-        api._dive=d=>finish({d,auto:false});
+        api._dive=d=>finish({d:pointOfDive(d),auto:false});   // tests: a zone name or a point
         return()=>{target.hidden=timer.hidden=true;pull.setAttribute('hidden','');a11y.innerHTML='';api._dive=null;try{pointer!==null&&host.releasePointerCapture(pointer)}catch(e){}}})},
+    /** the deciding kick, or sudden death: a slow red pulse at the edges of the picture */
+    pressure(v){host.classList.toggle('pressure',!!v)},
     /** Draw a resolved kick. Resolves when the keeper has landed and the taker reacts; a stuck picture cannot hang the duel. */
     play(result,{onContact,onResult,signal}={}){return new Promise((resolve,reject)=>{if(disposed||signal?.aborted)return reject(new Aborted());let done=false;
       const end=err=>{if(done)return;done=true;clearTimeout(t);signal?.removeEventListener('abort',abort);err?reject(err):resolve()};const abort=()=>end(new Aborted());signal?.addEventListener('abort',abort);
       const t=setTimeout(()=>end(),9000);let told=false;const result1=()=>{if(told)return;told=true;try{onResult&&onResult()}catch(e){console.error(e)}};
       try{stage.shoot(result,()=>{result1();end()},{contact:()=>{try{onContact&&onContact()}catch(e){}},result:result1})}catch(e){console.error(e);result1();end()}})},
+    /**
+     * The replay of the kick that ended the shoot-out, from the side of the goal at half speed. A tap skips it; it never outlasts 7 s.
+     * Resolves when it is over. A picture without replay (the simple 2D view) resolves at once.
+     */
+    replay(result,{signal}={}){return new Promise(resolve=>{if(disposed||signal?.aborted||!stage||typeof stage.replay!=='function')return resolve();let done=false;
+      const end=()=>{if(done)return;done=true;clearTimeout(t);signal?.removeEventListener('abort',end);host.removeEventListener('pointerdown',skip,true);host.classList.remove('replaying');replayEl.hidden=true;try{stage.skipReplay&&stage.skipReplay()}catch(e){}resolve()};
+      const skip=e=>{e.preventDefault();e.stopPropagation();end()};const t=setTimeout(end,7000);signal?.addEventListener('abort',end);
+      host.addEventListener('pointerdown',skip,true);host.classList.add('replaying');replayEl.hidden=false;
+      try{stage.replay(result,end)}catch(e){console.error(e);end()}})},
     cheer(v){try{stage?.cheer(v)}catch(e){}},pause(){try{stage?.pause()}catch(e){}},resume(){try{stage?.resume()}catch(e){}},
-    dispose(){if(disposed)return;disposed=true;clearTimeout(flashT);clearTimeout(roleT);host.classList.remove('i-kick','i-keep');clearInterval(debugT);try{api._cancel&&api._cancel()}catch(e){}host.removeEventListener('contextmenu',stop);host.removeEventListener('selectstart',stop);host.removeEventListener('dragstart',stop);
+    dispose(){if(disposed)return;disposed=true;host.classList.remove('pressure','replaying');clearTimeout(flashT);clearTimeout(roleT);host.classList.remove('i-kick','i-keep');clearInterval(debugT);try{api._cancel&&api._cancel()}catch(e){}host.removeEventListener('contextmenu',stop);host.removeEventListener('selectstart',stop);host.removeEventListener('dragstart',stop);
       try{stage?.dispose()}catch(e){}stage=null;host.innerHTML='';host.classList.remove('game-arena')}};
   return api}

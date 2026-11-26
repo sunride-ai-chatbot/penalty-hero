@@ -23,3 +23,8 @@ test('a match nobody turns up for is settled by the others, in the slot order',a
 test('messages from another cup or a forged sender are ignored',async()=>{const bus=memoryBus(),kick=Date.now()+150,a=join(bus,'a',kick),b=join(bus,'b',kick);const t=bus.transport();const c=await t('CUP-T1',()=>{});
   c.send({v:3,k:'cup',cup:'OTHER',f:'x',t:'reg',p:{id:'x',name:'x',team:'t'}});c.send({v:3,k:'cup',cup:'T1',f:'y',t:'reg',p:{id:'z',name:'forged',team:'t'}});await wait(500);
   assert.deepEqual(a.regs().map(p=>p.id).sort(),['a','b']);assert.equal(a.status,'started');a.close();b.close();c.close()});
+
+test('pictures travel with the sign-up and are known to everybody, also after the roster',async()=>{const bus=memoryBus(),kick=Date.now()+200,photo='data:image/jpeg;base64,/9j/4AAQSkZJRg==';
+  const a=join(bus,'a',kick,{me:()=>({id:'a',name:'א',team:'t',av:photo})}),b=join(bus,'b',kick,{me:()=>({id:'b',name:'ב',team:'t',av:'e:⚽'})});await wait(150);
+  assert.equal(a.avatarOf('b'),'e:⚽');assert.equal(b.avatarOf('a'),photo);await wait(500);assert.equal(b.avatarOf('a'),photo);
+  const c=join(bus,'c',kick,{me:()=>({id:'c',name:'ג',team:'t',av:'<script>'})});await wait(300);assert.equal(a.avatarOf('c'),'');for(const n of [a,b,c])n.close()});

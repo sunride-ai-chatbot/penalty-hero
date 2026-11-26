@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {createCup,sizeFor,applyResult,winnerOf,matchView,allMatches,champion,nextFor,outOf,standings,slotsOf,nextSlot,publicCupId,resultsOf,roundName} from '../src/core/cup.js';
+import {cleanAvatar,createCup,sizeFor,applyResult,winnerOf,matchView,allMatches,champion,nextFor,outOf,standings,slotsOf,nextSlot,publicCupId,resultsOf,roundName} from '../src/core/cup.js';
 const roster=n=>Array.from({length:n},(_,i)=>({id:'p'+i,name:'שחקן '+i,team:'t'+i}));
 const play=(cup,r,m,w,extra={})=>{const [a,b]=slotsOf(cup,r,m);return applyResult(cup,{r,m,a,b,w,ga:w===a?4:2,gb:w===a?2:4,ka:5,kb:5,kind:'played',...extra})};
 test('sizes and names',()=>{assert.deepEqual([2,3,4,5,8].map(sizeFor),[2,4,4,8,8]);assert.equal(createCup(roster(1)),null);assert.equal(roundName(8,0),'רבע גמר');assert.equal(roundName(8,2),'גמר');assert.equal(roundName(2,0),'גמר')});
@@ -29,3 +29,8 @@ test('when a result is replaced, later results that no longer fit are dropped',(
 test('standings: accuracy is goals over kicks',()=>{const cup=createCup(roster(2),'a');const [a,b]=slotsOf(cup,0,0);applyResult(cup,{r:0,m:0,a,b,w:a,ga:4,gb:3,ka:5,kb:5,kind:'played'});const rows=standings(cup);assert.deepEqual(rows.map(r=>[r.id,r.pct]),[[a,80],[b,60]])});
 test('public cups: one every 15 minutes, never less than two minutes away, the same id for everyone',()=>{const t=Date.UTC(2026,10,26,10,3,0);const s=nextSlot(t);assert.equal(s%(15*60000),0);assert.ok(s-t>=2*60000);assert.equal(publicCupId(s),publicCupId(s+1000));assert.notEqual(publicCupId(s),publicCupId(s+15*60000));
   assert.equal(nextSlot(Date.UTC(2026,10,26,10,14,0)),Date.UTC(2026,10,26,10,30,0))});
+
+test('a picture is a small photo or an icon; anything else is dropped',()=>{const photo='data:image/jpeg;base64,/9j/4AAQSkZJRg==';
+  assert.equal(cleanAvatar(photo),photo);assert.equal(cleanAvatar('e:⚽'),'e:⚽');assert.equal(cleanAvatar('e:👑'),'e:👑');
+  for(const bad of ['','javascript:alert(1)','data:text/html;base64,PGI+','data:image/svg+xml;base64,PHN2Zz4=','data:image/jpeg;base64,AA" onerror="x','e:','e:a b','https://x/y.png',5,null,'data:image/jpeg;base64,'+'A'.repeat(12100)])assert.equal(cleanAvatar(bad),'');
+  const cup=createCup([{id:'p0',name:'a',team:'t',av:photo},{id:'p1',name:'b',team:'t',av:'javascript:x'}],'s');assert.equal(cup.players.p0.av,photo);assert.equal(cup.players.p1.av,'')});

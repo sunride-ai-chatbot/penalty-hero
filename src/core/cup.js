@@ -8,13 +8,18 @@ export const sizeFor=n=>n<=2?2:n<=4?4:8;
 export const roundsOf=size=>Math.round(Math.log2(size));
 export const roundName=(size,r)=>{const left=roundsOf(size)-1-r;return left===0?'גמר':left===1?'חצי גמר':left===2?'רבע גמר':'שלב '+(r+1)};
 export const matchCode=(cupId,r,m)=>`${cupId}-${r}${m}`;
+/** A player's picture: a tiny photo as a data URL ("data:image/jpeg;base64,…", at most 12 KB) or an icon ("e:⚽"). Anything else is dropped,
+    because it comes from other phones and ends up in an <img src>. */
+export function cleanAvatar(v){if(typeof v!=='string')return '';
+  if(v.length<=10&&/^e:\S{1,8}$/u.test(v))return v;
+  return v.length<=12000&&/^data:image\/(jpeg|webp|png);base64,[A-Za-z0-9+/]+={0,2}$/.test(v)?v:''}
 const KINDS={played:3,wo:2,fb:1};   // which report wins when two disagree: a real shoot-out, then a walkover claimed by one side, then one claimed by a bystander
 const key=(r,m)=>r+':'+m;
 const num=(v,max)=>Number.isInteger(v)&&v>=0&&v<=max;
 
 /** roster: [{id,name,team}], salt: any string. The order of play is shuffled by the salt, so it is the same on every phone. */
 export function createCup(roster,salt=''){
-  const list=[],seen=new Set();for(const p of roster||[]){if(p&&typeof p.id==='string'&&p.id&&!seen.has(p.id)&&list.length<MAX_PLAYERS){seen.add(p.id);list.push({id:p.id,name:String(p.name||'שחקן').slice(0,24),team:String(p.team||'')})}}
+  const list=[],seen=new Set();for(const p of roster||[]){if(p&&typeof p.id==='string'&&p.id&&!seen.has(p.id)&&list.length<MAX_PLAYERS){seen.add(p.id);list.push({id:p.id,name:String(p.name||'שחקן').slice(0,24),team:String(p.team||''),av:cleanAvatar(p.av)})}}
   if(list.length<2)return null;
   const rng=makeRng('cup:'+salt),order=list.slice();for(let i=order.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[order[i],order[j]]=[order[j],order[i]]}
   const size=sizeFor(list.length),pairs=size/2,pairOrder=Array.from({length:pairs},(_,i)=>i);for(let i=pairs-1;i>0;i--){const j=Math.floor(rng()*(i+1));[pairOrder[i],pairOrder[j]]=[pairOrder[j],pairOrder[i]]}

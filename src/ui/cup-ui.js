@@ -5,14 +5,24 @@ import {newRoomCode} from '../net/transport.js';
 import {createRoom,MSG} from '../net/protocol.js';
 import {createCupNet,CUP_MSG} from '../net/cup.js';
 import {kingApi,rowFor,rankKing,MIN_KICKS} from '../net/king.js';
-import {nextFor,standings,allMatches,matchView,champion,outOf,roundName,roundsOf,matchCode,nextSlot,publicCupId,slotsOf,MAX_PLAYERS} from '../core/cup.js';
+import {cleanAvatar,nextFor,standings,allMatches,matchView,champion,outOf,roundName,roundsOf,matchCode,nextSlot,publicCupId,slotsOf,MAX_PLAYERS} from '../core/cup.js';
 
 const hhmm=ms=>new Date(ms).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});
 const clock=ms=>{const s=Math.max(0,Math.ceil(ms/1000)),m=Math.floor(s/60);return String(m).padStart(2,'0')+':'+String(s%60).padStart(2,'0')};
+/* a player is shown by his own picture (a small photo, or an icon he picked), never by his club: with no picture, the first letter on a colour of his own */
+const hue=str=>{let h=0;for(const c of String(str))h=(h*31+c.charCodeAt(0))%360;return h};
+const avatarHtml=(av,name,cls='')=>{av=cleanAvatar(av);if(av.startsWith('data:'))return `<img class="av ${cls}" src="${av}" alt="">`;if(av.startsWith('e:'))return `<span class="av ic ${cls}" aria-hidden="true">${esc(av.slice(2))}</span>`;
+  return `<span class="av ini ${cls}" style="--h:${hue(name)}" aria-hidden="true">${esc([...String(name||'?')][0]||'?')}</span>`};
+const ICONS=['⚽','🧤','🦁','🐯','🦅','🔥','⭐','👑'];
+/** any photo from the phone → a 64×64 square JPEG of a few KB, small enough to travel in every sign-up message */
+async function photoToAvatar(file){const url=URL.createObjectURL(file);try{const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=url});
+  const n=Math.min(img.naturalWidth,img.naturalHeight),c=document.createElement('canvas');c.width=c.height=64;c.getContext('2d').drawImage(img,(img.naturalWidth-n)/2,(img.naturalHeight-n)/2,n,n,0,0,64,64);
+  for(const q of [.72,.55,.4]){const d=c.toDataURL('image/jpeg',q);if(cleanAvatar(d))return d}return ''}finally{URL.revokeObjectURL(url)}}
 const pct=(g,k)=>k?Math.round(g/k*100)+'%':'—';
 
 export function cupFeature(C){
   const {S,show,top,crestOf,toast,store,getCatalog,clubById,loadSquad,buildSide,cleanName,nameOrDefault,setName,intro,game,keepAwake,audio,RULES_VERSION,loadTransport,pickClub}=C;
+  S.avatar=cleanAvatar(store.get('avatar',''));
   const X={net:null,room:null,R:null,matchKey:'',startT:0,waitT:0,done:false,submitted:false};
   if(new URLSearchParams(location.search).has('debug'))window.__cup=X;
   const forced=new URLSearchParams(location.search).get('pid');   // tests open several phones in one browser profile, which would share one id
@@ -22,7 +32,8 @@ export function cupFeature(C){
   const history=()=>{try{const a=JSON.parse(store.get('cups','[]'));return Array.isArray(a)?a.slice(-30):[]}catch(e){return[]}};
   const king=()=>{try{const c=JSON.parse(store.get('kingCfg','null'));return c}catch(e){return null}};
   const clubOf=id=>{try{return clubById(id)}catch(e){return null}};
-  const playerLine=(cup,id,extra='')=>{const p=id&&cup.players[id];if(!p)return `<div class="cp empty"><span class="crest-box"></span><b>—</b></div>`;const c=clubOf(p.team);return `<div class="cp${id===S.pid?' me':''}">${c?crestOf(c):'<span class="crest-box"></span>'}<b>${esc(p.name)}</b>${extra}</div>`};
+  const avOf=id=>X.net?.avatarOf(id)||X.net?.cup?.players[id]?.av||'';
+  const playerLine=(cup,id,extra='')=>{const p=id&&cup.players[id];if(!p)return `<div class="cp empty"><span class="av ini" aria-hidden="true">?</span><b>—</b></div>`;return `<div class="cp${id===S.pid?' me':''}">${avatarHtml(avOf(id),p.name)}<b>${esc(p.name)}</b>${extra}</div>`};
   const closeMatch=()=>{clearTimeout(X.waitT);clearTimeout(X.closeT);if(X.room){try{X.room.close()}catch(e){}X.room=null}X.R=null};
   function closeCup(){closeMatch();clearInterval(X.startT);if(X.net){try{X.net.close()}catch(e){}X.net=null}X.matchKey='';X.done=false;X.submitted=false;X.shown=false;store.set('cupActive','')}
 
@@ -45,9 +56,13 @@ export function cupFeature(C){
     show('cupreg',top('הרשמה לטורניר',true,'מתחיל ב־'+hhmm(def.at))+`<main class="body center">${error?`<p class="err">${esc(error)}</p>`:''}
       ${expired?`<p class="err">הטורניר הזה כבר התחיל או הסתיים.</p>`:''}
       <div class="vs-one">${my?crestOf(my):''}<strong>${my?esc(my.name):'עוד לא בחרת קבוצה'}</strong><button type="button" class="link" id="swap">${my?'החלף קבוצה':'בחר קבוצה'}</button></div>
-      <div class="card"><label for="cupName">השם שלך בטבלה</label><input id="cupName" type="text" maxlength="24" placeholder="איך קוראים לך?" value="${esc(S.name)}" enterkeyhint="done" spellcheck="false">
+      <div class="card"><label for="cupName">השם שלך בטבלה</label><div class="avrow"><span id="avprev">${avatarHtml(S.avatar,S.name,'big')}</span><input id="cupName" type="text" maxlength="24" placeholder="איך קוראים לך?" value="${esc(S.name)}" enterkeyhint="done" spellcheck="false"><label class="btn camera" for="avfile" id="avbtn">📷 העלה תמונה</label><input type="file" id="avfile" class="vh" accept="image/*"></div>
+      <div class="icons" role="group" aria-label="או בחר אייקון">${ICONS.map(i=>`<button type="button" class="chip${S.avatar==='e:'+i?' on':''}" data-ic="${i}">${i}</button>`).join('')}${S.avatar?'<button type="button" class="chip" data-ic="">בלי תמונה</button>':''}</div>
       <p class="note">מתחיל בעוד <b id="eta"></b>. ההרשמה סוגרת בשעת הפתיחה. נשארים בטלפון פתוח ומחוברים.</p><button type="button" class="btn big" id="join"${expired?' disabled':''}>הירשם</button></div></main>`,el=>{
-      const input=el.querySelector('#cupName');input.addEventListener('input',()=>setName(input.value));el.querySelector('[data-back]').onclick=()=>home();
+      const input=el.querySelector('#cupName'),prev=el.querySelector('#avprev');const setAv=v=>{S.avatar=cleanAvatar(v);store.set('avatar',S.avatar);prev.innerHTML=avatarHtml(S.avatar,input.value,'big');for(const b of el.querySelectorAll('[data-ic]'))b.classList.toggle('on',!!S.avatar&&S.avatar==='e:'+b.dataset.ic)};
+      input.addEventListener('input',()=>{setName(input.value);if(!S.avatar)prev.innerHTML=avatarHtml('',input.value,'big')});
+      for(const b of el.querySelectorAll('[data-ic]'))b.onclick=()=>b.dataset.ic?setAv('e:'+b.dataset.ic):register(def);
+      el.querySelector('#avfile').onchange=async e=>{const f=e.target.files&&e.target.files[0];if(!f)return;try{const d=await photoToAvatar(f);if(!d)return toast('לא הצלחנו להשתמש בתמונה הזו');setAv(d);register(def)}catch(x){toast('לא הצלחנו לפתוח את התמונה')}};el.querySelector('[data-back]').onclick=()=>home();
       const eta=el.querySelector('#eta'),upd=()=>{eta.textContent=clock(def.at-Date.now())};upd();const iv=setInterval(upd,1000);
       el.querySelector('#swap').onclick=()=>pickClub({title:'הקבוצה שלך',back:()=>register(def),done:id=>{S.my=id;store.set('club',id);register(def)}});
       el.querySelector('#join').onclick=()=>{setName(input.value);if(!S.name)return toast('כתוב שם, כדי שנדע מי אתה בטבלה');if(!clubOf(S.my))return toast('בחר קבוצה');enter(def)};return()=>clearInterval(iv)})}
@@ -55,7 +70,7 @@ export function cupFeature(C){
   async function enter(def){const t=await ensureTransport();if(!t.available)return home(MSG.service);closeCup();const my=clubOf(S.my);
     store.set('cupActive',JSON.stringify({id:def.id,at:def.at}));S.cupDef=def;
     let repaintT=0;const repaint=()=>{if(repaintT)return;repaintT=setTimeout(()=>{repaintT=0;onChange()},120)};
-    X.net=createCupNet({connect:t.connect,cupId:def.id,kickoffAt:def.at,me:()=>({id:S.pid,name:nameOrDefault(),team:my.id}),on:{change:repaint,fail:m=>{closeCup();home(m)}}});
+    X.net=createCupNet({connect:t.connect,cupId:def.id,kickoffAt:def.at,me:()=>({id:S.pid,name:nameOrDefault(),team:my.id,av:S.avatar}),on:{change:repaint,fail:m=>{closeCup();home(m)}}});
     lobby()}
   function onChange(){const n=X.net;if(!n)return;
     if(screen()==='cuplobby'){if(n.status==='started'){try{audio.whistle();navigator.vibrate&&navigator.vibrate([60,40,60])}catch(e){}return bracket()}if(n.status==='cancelled'||n.status==='late')return ended(n.status==='late'?CUP_MSG.late:CUP_MSG.few);return paintLobby()}
@@ -73,7 +88,7 @@ export function cupFeature(C){
         try{await navigator.clipboard.writeText(link);toast('הקישור הועתק')}catch(e){el.querySelector('.linkbox').select();toast('סמנו והעתיקו את הקישור')}};
       const iv=setInterval(()=>{const cd=el.querySelector('#cd');if(cd)cd.textContent=clock(def.at-Date.now())},250);paintLobby();return()=>{clearInterval(iv);release()}})}
   function paintLobby(){const n=X.net,slots=document.querySelector('#slots');if(!n||!slots)return;const regs=n.regs();
-    slots.innerHTML=Array.from({length:MAX_PLAYERS},(_,i)=>{const p=regs[i];if(!p)return `<div class="slot"><span class="crest-box"></span><b>ממתין…</b></div>`;const c=clubOf(p.team);return `<div class="slot on${p.id===S.pid?' me':''}">${c?crestOf(c):'<span class="crest-box"></span>'}<b>${esc(p.name)}</b></div>`}).join('');
+    slots.innerHTML=Array.from({length:MAX_PLAYERS},(_,i)=>{const p=regs[i];if(!p)return `<div class="slot"><span class="av ini empty big" aria-hidden="true">?</span><b>ממתין…</b></div>`;return `<div class="slot on${p.id===S.pid?' me':''}">${avatarHtml(n.avatarOf(p.id)||p.av,p.name,'big')}<b>${esc(p.name)}</b></div>`}).join('');
     const note=document.querySelector('#lnote');if(note)note.textContent=n.status==='connecting'?'מתחבר…':regs.length<2?'עוד אף אחד לא נרשם. שלח את הקישור לחברים.':`${Math.min(regs.length,MAX_PLAYERS)} מתוך ${MAX_PLAYERS} נרשמו. אם לא ימלאו את המקומות, יתחילו עם מי שנרשם.`+(regs.length>MAX_PLAYERS?' ('+(regs.length-MAX_PLAYERS)+' ברשימת המתנה)':'')}
   const inviteLink=def=>{const u=new URL(location.href);u.search='';u.hash='';u.searchParams.set('cup',def.id);u.searchParams.set('at',String(def.at));return u.href};
   function ended(text){closeCup();show('cupend',top('ליגת נוקאאוט',true)+`<main class="body center"><p class="err">${esc(text)}</p><button type="button" class="btn big" id="again">חזרה לליגה</button></main>`,el=>{el.querySelector('[data-back]').onclick=intro;el.querySelector('#again').onclick=()=>home()})}
@@ -105,7 +120,7 @@ export function cupFeature(C){
   /* ---------- my match: an ordinary friend room, named by the cup and the place in the bracket ---------- */
   function startMatch(v){const n=X.net,cup=n?.cup;if(!cup)return;closeMatch();const R={fail:null,ended:null};X.R=R;const my=clubOf(S.my),opp=cup.players[v.opp],host=v.side==='a';let started=false,claimed=false;
     const claim=()=>{if(claimed)return;claimed=true;n.report({r:v.r,m:v.m,a:v.a,b:v.b,w:S.pid,ga:0,gb:0,ka:0,kb:0,kind:'wo'})};
-    const waiting=(text,err)=>show('cupwait',top(roundName(cup.size,v.r),true)+`<main class="body center"><div class="versus one"><div>${crestOf(my)}<strong>${esc(nameOf(cup,S.pid))}</strong></div><b class="vs">נגד</b><div>${(()=>{const c=clubOf(opp?.team);return c?crestOf(c):''})()}<strong>${esc(opp?.name||'')}</strong></div></div>
+    const waiting=(text,err)=>show('cupwait',top(roundName(cup.size,v.r),true)+`<main class="body center"><div class="versus one"><div>${avatarHtml(avOf(S.pid),nameOf(cup,S.pid),'huge')}<strong>${esc(nameOf(cup,S.pid))}</strong></div><b class="vs">נגד</b><div>${avatarHtml(avOf(v.opp),opp?.name,'huge')}<strong>${esc(opp?.name||'')}</strong></div></div>
       ${err?`<p class="err">${esc(err)}</p>`:`<p class="note" role="status">${esc(text)}</p><div class="spinner"></div>`}${err?'<button type="button" class="btn big" id="retry">נסה שוב</button>':''}<button type="button" class="btn ghost" id="back">חזרה ללוח</button></main>`,el=>{
       el.querySelector('#back').onclick=()=>{closeMatch();X.startAt=Infinity;bracket()};el.querySelector('#retry')?.addEventListener('click',()=>startMatch(v))});
     waiting(host?'ממתין שהיריב יצטרף…':'מתחבר ליריב…');
@@ -141,7 +156,7 @@ export function cupFeature(C){
     const final=allMatches(cup).find(v=>v.r===roundsOf(cup.size)-1),res=final?.res;const confetti=Array.from({length:36},(_,i)=>`<i style="--x:${(i*53)%100}%;--d:${(i%9)*.35}s;--c:${['#f2c14e','#ffffff','#5bd16e','#e9c46a','#ff5d6c'][i%5]}"></i>`).join('');
     show('cuptrophy',`<div class="confetti" aria-hidden="true">${confetti}</div><main class="body center trophy-body"><svg class="trophy" viewBox="0 0 120 150" aria-hidden="true"><defs><linearGradient id="tg" x1="0" x2="1"><stop offset="0" stop-color="#b98a22"/><stop offset=".45" stop-color="#ffe58a"/><stop offset="1" stop-color="#a4741a"/></linearGradient></defs>
       <path d="M30 14h60v38c0 20-13 34-30 34S30 72 30 52Z" fill="url(#tg)"/><path d="M30 24H12c0 24 10 36 24 40M90 24h18c0 24-10 36-24 40" fill="none" stroke="url(#tg)" stroke-width="7" stroke-linecap="round"/><rect x="54" y="84" width="12" height="26" fill="url(#tg)"/><path d="M36 110h48l6 14H30Z" fill="url(#tg)"/><rect x="26" y="124" width="68" height="14" rx="4" fill="#7a5512"/><path d="M42 24c0 18 6 38 18 50" stroke="#fff8" stroke-width="5" fill="none" stroke-linecap="round"/></svg>
-      <h1 class="champ-title">${mine?'אלופים! אתה האלוף':'אלוף הליגה'}</h1><div class="vs-one">${club?crestOf(club):''}<strong class="champ-name">${esc(p?.name||'')}</strong><small>${club?esc(club.name):''}</small></div>
+      <h1 class="champ-title">${mine?'אלופים! אתה האלוף':'אלוף הליגה'}</h1><div class="vs-one">${avatarHtml(avOf(c),p?.name,'huge gold')}<strong class="champ-name">${esc(p?.name||'')}</strong><small>${club?esc(club.name):''}</small></div>
       ${res?`<p class="note">הגמר: ${esc(nameOf(cup,final.a))} <b>${res.ga}:${res.gb}</b> ${esc(nameOf(cup,final.b))}${res.kind!=='played'?' (בויתור)':''}</p>`:''}
       <p class="note" id="kmsg">${!cup.players[S.pid]?'':X.kingState==='ok'?'התוצאה שלך נרשמה בטבלת מלך הפנדלים.':X.kingState==='small'?'טורניר של פחות מ־4 שחקנים לא נספר בטבלה העולמית.':'התוצאה נשמרה בטלפון. הטבלה העולמית לא זמינה כרגע.'}</p>
       <button type="button" class="btn big" id="kingbtn">👑 מלך הפנדלים</button><button type="button" class="btn big alt" id="tbl">לטבלת הטורניר</button><button type="button" class="btn ghost" id="share2">שתף את הניצחון</button><button type="button" class="btn ghost" id="out">יציאה</button></main>`,el=>{

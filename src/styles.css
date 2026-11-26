@@ -151,3 +151,11 @@ input[type=text]:focus{outline:2px solid var(--go);outline-offset:1px;border-col
 .confetti{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:3}.confetti i{position:absolute;top:-14px;left:var(--x);width:9px;height:14px;background:var(--c);border-radius:2px;animation:fall 3.6s linear var(--d) infinite}
 @keyframes fall{to{transform:translateY(105vh) rotate(540deg)}}
 @media (prefers-reduced-motion:reduce){.confetti i,.trophy{animation:none}}
+
+/* a player's picture */
+.av{display:inline-flex;align-items:center;justify-content:center;flex:none;width:30px;height:30px;border-radius:50%;object-fit:cover;font-weight:800;font-size:15px;color:#fff;border:2px solid rgba(255,255,255,.25);background:hsl(var(--h,210) 55% 38%)}
+.av.ic{background:rgba(255,255,255,.12);font-size:17px}.av.empty{background:transparent;border:2px dashed var(--line);color:var(--muted)}
+.av.big{width:44px;height:44px;font-size:21px}.av.big.ic{font-size:24px}.av.huge{width:92px;height:92px;font-size:42px;border-width:3px}.av.huge.ic{font-size:46px}.av.gold{border-color:var(--gold);box-shadow:0 0 28px rgba(242,193,78,.5)}
+.avrow{display:flex;align-items:center;gap:8px;margin:6px 0}.avrow input[type=text]{flex:1;min-width:0}.btn.camera{width:auto;min-height:44px;flex:none;padding:10px 12px;font-size:14px;white-space:nowrap;cursor:pointer;margin:0}
+.vh{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none}.icons{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 2px}.icons .chip{font-size:18px;padding:5px 11px}
+.slot .av.big{width:46px;height:46px}.versus.one .av.huge{margin:0 auto 6px}

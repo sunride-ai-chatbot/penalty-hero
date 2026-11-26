@@ -12,7 +12,7 @@ async function page(ctx,{local=false,none=false}={}){const p=await ctx.newPage()
   else await p.route('**/config/network.json',r=>r.fulfill({contentType:'application/json',body:'{"transport":"none"}'}));   // tests never touch the live service
   return p}
 const phone=()=>browser.newContext({viewport:{width:390,height:780},hasTouch:true,isMobile:true,locale:'he-IL'});
-const step=async(name,fn)=>{const t=Date.now();try{await fn();passed++;console.log('ok   '+name+' ('+((Date.now()-t)/1000).toFixed(1)+'s)')}catch(e){problems.push(name+': '+e.message);console.log('FAIL '+name+'\n     '+e.message)}};
+const step=async(name,fn)=>{if(process.env.ONLY&&!name.includes(process.env.ONLY))return;const t=Date.now();try{await fn();passed++;console.log('ok   '+name+' ('+((Date.now()-t)/1000).toFixed(1)+'s)')}catch(e){problems.push(name+': '+e.message);console.log('FAIL '+name+'\n     '+e.message)}};
 const pickClub=async(p,country,league,club)=>{await p.click(`.tile[data-country="${country}"]`);if(league)await p.click(`.tile[data-league="${league}"]`).catch(()=>{});await p.click(`.tile[data-club="${club}"]`)};
 const state=p=>p.evaluate(()=>{const a=window.__ph&&window.__ph.arena,panel=document.querySelector('#panel');return {screen:document.querySelector('#app').dataset.screen,end:panel&&!panel.hidden?panel.innerText:null,kick:!!(a&&a._kick),dive:!!(a&&a._dive),
   who:document.querySelector('#who')?.innerText||'',scores:[...document.querySelectorAll('.hud-row')].map(r=>r.dataset.side+r.querySelector('.score').textContent+':'+[...r.querySelectorAll('.marks i')].map(i=>i.className==='in'?'1':i.className==='no'?'0':'-').join('')).sort().join(' ')}});
@@ -40,6 +40,22 @@ await step('country → league → club; the name can be edited again before the
   await p.waitForSelector('#playerName2');assert.equal(await p.inputValue('#playerName2'),'דני');assert.equal(await p.textContent('label[for=playerName2]'),'שם השחקן');assert.equal((await p.$$('.five li')).length,10);
   await p.fill('#playerName2','דני הגדול');const text=await p.textContent('.versus');assert.match(text,/מכבי תל אביב/);assert.match(text,/פאריס/);
   await p.reload();await p.waitForSelector('#playerName');assert.equal(await p.inputValue('#playerName'),'דני הגדול','the name is remembered');await ctx.close()});
+
+await step('the knockout league: a link, a countdown, two names in the places, the final, the trophy, the table',async()=>{const ctx=await phone();const A=await page(ctx,{local:true}),B=await page(ctx,{local:true});const at=Date.now()+30000;const url=(pid)=>BASE+`?debug=1&view=2d&pid=${pid}&cup=E2E${at%1000}&at=${at}`;
+  await A.goto(url('aaaaaa01'));await B.goto(url('bbbbbb02'));await A.waitForSelector('#playerName');assert.match(await A.textContent('.invite'),/ליגת נוקאאוט/);
+  for(const [p,name,club] of [[A,'דני',['fr',null,'e:psg']],[B,'מאיה',['il','il1','il:mta']]]){await p.fill('#playerName',name);await p.click('button[data-mode=cupjoin]');await p.waitForSelector('#cupName');await p.click('#swap');await pickClub(p,...club);await p.waitForSelector('#join');await p.click('#join');await p.waitForSelector('#app[data-screen=cuplobby]')}
+  await A.waitForFunction(()=>document.querySelectorAll('.slot.on').length===2,null,{timeout:20000});assert.match(await A.textContent('#cd'),/^\d\d:\d\d$/);assert.equal(await A.$$eval('.slot',s=>s.length),8);assert.ok(await A.inputValue('.linkbox').then(v=>/cup=E2E/.test(v)));
+  await Promise.all([A,B].map(p=>p.waitForSelector('#app[data-screen=cupbracket]',{timeout:60000})));
+  assert.match(await A.textContent('#rounds'),/גמר/);assert.equal(await A.$$eval('.tbl tbody tr',r=>r.length),2);
+  await Promise.all([A,B].map(p=>p.waitForSelector('#app[data-screen=game]',{timeout:60000})));await playOut([A,B]);
+  const ends=await Promise.all([A,B].map(p=>state(p)));assert.ok(/אלופים/.test(ends[0].end)!==/אלופים/.test(ends[1].end),'one champion: '+JSON.stringify(ends.map(e=>e.end)));
+  for(const p of [A,B]){await p.click('#panel [data-act]');}
+  await Promise.all([A,B].map(p=>p.waitForSelector('#app[data-screen=cuptrophy]',{timeout:20000})).slice(0,1));
+  const win=ends[0].end&&/אלופים/.test(ends[0].end)?A:B,lose=win===A?B:A;
+  assert.ok(await win.isVisible('.trophy'));assert.match(await win.textContent('.champ-title'),/אתה האלוף/);
+  await lose.waitForSelector('#app[data-screen=cuptrophy],#app[data-screen=cupbracket]',{timeout:20000});
+  await win.click('#tbl');await win.waitForSelector('.tbl tbody tr');const rows=await win.$$eval('.tbl tbody tr',r=>r.map(x=>x.innerText.replace(/\s+/g,' ')));assert.ok(rows[0].includes('🏆'),'the champion is on top of the scoreboard');assert.match(rows.join(' '),/\d+%/);
+  await win.click('[data-back]');await win.waitForSelector('#cuphome,.card');await ctx.close()});
 
 await step('the 3D scene: filmed taker, ball still until the contact frame, one committed dive, landing, reaction, changing shirts',async()=>{const ctx=await phone(),p=await page(ctx);await p.goto(BASE+'?debug=1');await p.fill('#playerName','דני');await p.click('button[data-mode=cpu]');
   await pickClub(p,'fr',null,'e:psg');await p.click('#choose');await pickClub(p,'il','il1','il:mta');await p.click('#go');await p.waitForFunction(()=>window.__ph&&window.__ph.arena.stage&&document.querySelector('.ar-load').hidden,null,{timeout:120000});
@@ -110,7 +126,7 @@ await step('two clients, one room: the link keeps the room, different clubs and 
   await guest.click('#quit');await guest.click('#leave');await host.waitForFunction(()=>/היריב עזב/.test(document.querySelector('#panel').innerText),null,{timeout:15000});await ctx.close()});
 
 await step('more ways to play: the chips, my numbers, survival ends on the first miss, the daily counts once, the cup runs a round',async()=>{const ctx=await phone(),p=await page(ctx);await p.goto(BASE+'?debug');await p.waitForSelector('#playerName');
-  assert.deepEqual(await p.$$eval('.more .chip',b=>b.map(x=>x.textContent)),['טורניר','הישרדות','אתגר יומי','הסטטיסטיקה שלי']);await p.fill('#playerName','רוני');
+  assert.deepEqual(await p.$$eval('.more .chip',b=>b.map(x=>x.textContent)),['ליגת נוקאאוט','👑 מלך הפנדלים','גביע מול המחשב','הישרדות','אתגר יומי','הסטטיסטיקה שלי']);await p.fill('#playerName','רוני');
   const kickOnce=async(x,y,m,c=0)=>{await p.waitForFunction(()=>window.__ph&&window.__ph.arena._kick,null,{timeout:90000});await p.evaluate(([x,y,m,c])=>window.__ph.arena._kick(x,y,m,c),[x,y,m,c])};
   const stats=()=>p.evaluate(()=>JSON.parse(localStorage.getItem('ph.stats')||'{}'));
   await p.click('.chip[data-mode=stats]');await p.waitForSelector('#app[data-screen=stats]');assert.match(await p.textContent('.statlist'),/שיא הישרדות/);await p.click('[data-back]');await p.waitForSelector('#playerName');

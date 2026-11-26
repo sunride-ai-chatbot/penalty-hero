@@ -22,7 +22,7 @@ export function createPenaltyView(host,opts={}){
   const scene=new T.Scene(),camera=new T.PerspectiveCamera(50,1,.1,320),ray=new T.Raycaster(),v3=new T.Vector3(),v2=new T.Vector2();
   let film=null,kf=null,pf=null,celeb=null,lastO={},shot=null,act=null,netT=-1,netZ=0,netAmp=1,netY=1.2,caughtAt=null,fps={n:0,t:0,value:0};
   // effects: slow motion on a goal, a freeze on contact with the frame, camera shake, a push in; and the replay camera
-  const fx={scale:1,slow:null,stop:0,shake:0,punch:0,live:false},camBase={pos:new T.Vector3(),quat:new T.Quaternion(),fov:50},tq=new T.Quaternion(),te=new T.Euler();
+  const fx={scale:1,slow:null,stop:0,shake:0,punch:0,zoom:0,zoomTo:0,hold:0,live:false},camBase={pos:new T.Vector3(),quat:new T.Quaternion(),fov:50},tq=new T.Quaternion(),te=new T.Euler();
   let rep=false,repDone=null,lefty=false,repPhase='run';
   const gloveL=new T.Vector3(),gloveR=new T.Vector3(),hold=new T.Vector3();
   // can this device draw the scene? After a warm-up, 1.2 seconds of frames are timed; under ten a second the game is told once.
@@ -106,14 +106,14 @@ export function createPenaltyView(host,opts={}){
   const runShape=(u,stutter)=>{if(!stutter)return u;const s1=1/.8125;return u<=.55?u*s1:u<=.8?(.55+(u-.55)*.25)*s1:(.6125+(u-.8))*s1};
   function clipTime(){if(!shot)return 0;if(shot.contactAt===null)return film.contact*runShape(clamp((clock-shot.start)/shot.approach),shot.stutter);
     return film.contact+Math.min(film.duration-film.contact,(clock-shot.contactAt)*(film.duration-film.contact)/FOLLOW)}
-  function shakeCamera(){const on=fx.shake>.0006||fx.punch>.01;if(!on&&!fx.live)return;fx.live=on;
+  function shakeCamera(){const on=fx.shake>.0006||fx.punch>.01||fx.zoom>.05;if(!on&&!fx.live)return;fx.live=on;
     if(!on){camera.position.copy(camBase.pos);camera.quaternion.copy(camBase.quat);if(camera.fov!==camBase.fov){camera.fov=camBase.fov;camera.updateProjectionMatrix()}return}
     const a=fx.shake,c=clock;camera.position.set(camBase.pos.x+Math.sin(c*61)*a*.6,camBase.pos.y+Math.sin(c*53+1)*a*.5,camBase.pos.z+Math.sin(c*47+2)*a*.8);
     te.set(Math.sin(c*57)*a*.04,Math.sin(c*43+1)*a*.05,Math.sin(c*39)*a*.03);tq.setFromEuler(te);camera.quaternion.copy(camBase.quat).multiply(tq);
-    const f=camBase.fov-fx.punch;if(Math.abs(camera.fov-f)>.01){camera.fov=f;camera.updateProjectionMatrix()}}
+    const f=camBase.fov-fx.punch-fx.zoom;if(Math.abs(camera.fov-f)>.01){camera.fov=f;camera.updateProjectionMatrix()}}
   function fxStep(dt){if(fx.stop>0){fx.stop-=dt}
     if(fx.slow){const w=fx.slow;w.t+=dt;fx.scale=w.t<w.hold?w.min:w.min+(1-w.min)*clamp((w.t-w.hold)/w.rec);if(w.t>=w.hold+w.rec){fx.slow=null;fx.scale=1}}
-    fx.shake*=Math.exp(-dt*8);fx.punch*=Math.exp(-dt*5);if(fx.shake<.0004)fx.shake=0;if(fx.punch<.005)fx.punch=0}
+    fx.zoom+=(fx.zoomTo-fx.zoom)*(1-Math.exp(-dt*(fx.zoomTo>fx.zoom?1.6:3)));if(fx.zoom<.03&&!fx.zoomTo)fx.zoom=0;fx.shake*=Math.exp(-dt*8);fx.punch*=Math.exp(-dt*5);if(fx.shake<.0004)fx.shake=0;if(fx.punch<.005)fx.punch=0}
   const slowmo=(min,hold,rec)=>{if(rep)return;fx.slow={min,hold,rec,t:0};fx.scale=min};
   const hitstop=sec=>{if(!rep)fx.stop=Math.max(fx.stop,sec)};
   const bump=(shake,punch)=>{fx.shake=Math.max(fx.shake,shake);fx.punch=Math.max(fx.punch,punch)};
@@ -145,7 +145,7 @@ export function createPenaltyView(host,opts={}){
     renderer.render(scene,camera);
   }
   function advance(dt){clock+=dt;if(netT>=0)netT+=dt;
-    if(world&&world.crowd){world.crowd.time=clock;world.crowd.decay(dt)}
+    if(world&&world.crowd){world.crowd.time=clock;world.crowd.decay(dt);if(fx.hold>0)world.crowd.cheer=Math.max(world.crowd.cheer,fx.hold)}
     stepKeeper(dt);
     if(shot&&shot.reactAt===null&&shot.reaction&&shot.contactAt!==null&&clock-shot.contactAt>=FOLLOW)shot.reactAt=clock;   // the reaction follows the filmed motion, never cuts into it
     if(act){act.t+=dt;const u=clamp(act.t/act.dur);act.step(u,act.t);if(u>=1){const a=act;act=null;a.done&&a.done()}}}
@@ -169,7 +169,8 @@ export function createPenaltyView(host,opts={}){
      * done() after the keeper has landed and the taker has begun to react.
      */
     shoot(r,done,on={},mode='live'){if(disposed)return;
-      const replaying=mode==='replay';
+      const replaying=mode==='replay',cine=!!on.decisive&&!replaying;   // the kick that ends the shoot-out: the lens creeps in, time thins, the stand rises
+      if(cine){fx.zoomTo=9;fx.hold=.55;slowmo(.7,1.6,.5)}
       const dir=String(r.keeper?.dir||'C'),col=dir.includes('L')?-1:dir.includes('R')?1:0,row=dir[0]==='U'?2:dir[0]==='D'?0:1,saved=r.how==='save';
       const flight=clamp(r.flight||48/clamp(r.power||73,30,100),.3,2),curl=r.curl||0,style=r.style||{};
       const approach=[1.0,1.25,1.55][style.run??1];
@@ -180,12 +181,12 @@ export function createPenaltyView(host,opts={}){
       if(saved&&col)K.liftSaved=K.lift;
       const scored=r.how==='goal',tx=scored?GX+.55:GX-.06,from={x:SPOT,y:BALL_R,z:0},arc=.05+.17*clamp(r.y/2.44);
       shot={start:clock,contactAt:null,reactAt:null,reaction:null,r,approach,stutter:!!style.stutter,replay:replaying};let slowed=false;
-      play(approach,u=>{R.x=RUN.x+(SPOT-.28-RUN.x)*u;R.z=RUN.z+(-.105-RUN.z)*u;R.speed=u<.92?3.1:0;R.phase=u*8;R.strike=u>.8?(u-.8)/.2*.62:-1},()=>{
+      play(approach,u=>{if(cine&&u>.6)fx.hold=.8;R.x=RUN.x+(SPOT-.28-RUN.x)*u;R.z=RUN.z+(-.105-RUN.z)*u;R.speed=u<.92?3.1:0;R.phase=u*8;R.strike=u>.8?(u-.8)/.2*.62:-1},()=>{
         R.speed=0;R.strike=.62;shot.contactAt=clock;K.state='read';K.t=0;if(replaying){repPhase='flight';frameCamera();draw()}try{on.contact&&on.contact()}catch(e){}
         play(flight,u=>{R.strike=.62+.38*clamp(u*1.5);B.x=from.x+(tx-from.x)*u;B.z=from.z+(r.x-from.z)*u-curl*.9*4*u*(1-u);B.y=from.y+(r.y-from.y)*u+Math.sin(u*Math.PI)*arc;B.spin=curl*u*18+u*3;
           if(scored&&!slowed&&u>.84){slowed=true;slowmo(.3,.3,.8)}},()=>{
           shot.reaction=scored?'goal':'miss';const p={x:B.x,y:B.y,z:B.z},fire=()=>{try{on.result&&on.result()}catch(e){}};const hard=clamp((r.power||70)/100);
-          const finish=()=>{const wait=Math.max(0,FOLLOW+.55-(clock-shot.contactAt),K.state==='down'?0:.45);play(wait,()=>{},done)};
+          const finish=()=>{fx.zoomTo=0;fx.hold=0;const wait=Math.max(0,FOLLOW+.55-(clock-shot.contactAt),K.state==='down'?0:.45);play(wait,()=>{},done)};
           const arrive=()=>{netT=0;netZ=r.x;netY=r.y;netAmp=.7+.7*hard;api.cheer(1)};
           if(scored&&r.post){   // off the frame, then over the line
             bump(.08,1.2);hitstop(.07);let in1=false,s1=Math.sign(p.z||1);
@@ -201,11 +202,11 @@ export function createPenaltyView(host,opts={}){
      * The same kick again from the side of the goal, at half speed, for the kick that ended the shoot-out.
      * The first half follows the run-up and the strike from behind and to the side (the taker's plane turns to face that camera); at the contact it cuts to the goal mouth for the ball, the keeper and the net. skipReplay() ends it early.
      */
-    replay(r,done){if(disposed||rep||!world)return done&&done();rep=true;repPhase='run';repDone=done;fx.slow=null;fx.scale=1;fx.stop=0;resetKick();frameCamera();draw();
+    replay(r,done){if(disposed||rep||!world)return done&&done();rep=true;repPhase='run';repDone=done;fx.zoom=fx.zoomTo=fx.hold=0;fx.slow=null;fx.scale=1;fx.stop=0;resetKick();frameCamera();draw();
       api.shoot(r,()=>endReplay(),{},'replay')},
     skipReplay(){if(rep)endReplay()},
     /** A new kick in the same stadium: everything back to the spot, the new taker's shirt on. */
-    reset(o){if(disposed)throw new Error('disposed');if(rep)endReplay(true);if(celeb){celeb=null;pf?.hide()}resetKick();fx.slow=null;fx.scale=1;fx.stop=0;fx.shake=fx.punch=0;lefty=false;if(film)film.flip=false;
+    reset(o){if(disposed)throw new Error('disposed');if(rep)endReplay(true);fx.zoom=fx.zoomTo=fx.hold=0;if(celeb){celeb=null;pf?.hide()}resetKick();fx.slow=null;fx.scale=1;fx.stop=0;fx.shake=fx.punch=0;lefty=false;if(film)film.flip=false;
       cast(o||opts);frameCamera();draw()},
     /** The winners' celebration after the deciding goal: four players run in and hug in the box, in the scorer's kit. skipCelebration() ends it early. */
     celebrate(done,{goal=true}={}){if(disposed||!pf?.ready)return done&&done();   // the winners: the scorer's team after a goal, the other team after a miss or a save

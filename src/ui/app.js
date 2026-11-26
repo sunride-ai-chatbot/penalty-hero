@@ -11,6 +11,7 @@ import {createArena} from '../game/arena.js';
 import {runDuel} from '../game/match.js';
 import {createRoom,MSG} from '../net/protocol.js';
 import {loadTransport,newRoomCode,cleanCode} from '../net/transport.js';
+import {cupFeature} from './cup-ui.js';
 
 const ASSET=p=>new URL('../../assets/'+p,import.meta.url).href;
 const store={get(k,d=''){try{return localStorage.getItem('ph.'+k)??d}catch(e){return d}},set(k,v){try{localStorage.setItem('ph.'+k,v)}catch(e){}}};
@@ -41,15 +42,15 @@ export function startApp(root,{audio}){
   function intro(){S.mode=null;
     show('intro',`<video class="intro-video" muted loop playsinline webkit-playsinline autoplay preload="auto" poster="${ASSET('cinematic-stadium.webp')}" src="${ASSET('penalty-intro.mp4')}"></video><div class="intro-shade"></div>
       <div class="intro-body"><img class="intro-logo" src="${ASSET('penalty-crest.webp')}" width="440" height="370" alt="Penalty Hero"><h1 class="sr">Penalty Hero</h1>
-      <form class="card intro-card" autocomplete="off">${S.invite?`<p class="invite">הוזמנת לדו־קרב · חדר <bdi dir="ltr">${S.invite}</bdi></p>`:''}
+      <form class="card intro-card" autocomplete="off">${S.cupInvite?`<p class="invite">הוזמנת לליגת נוקאאוט פנדלים · מתחילים ב־<bdi>${cup.hhmm(S.cupInvite.at)}</bdi></p>`:S.invite?`<p class="invite">הוזמנת לדו־קרב · חדר <bdi dir="ltr">${S.invite}</bdi></p>`:''}
         <label for="playerName">שם השחקן</label><input id="playerName" name="nickname" type="text" maxlength="24" placeholder="איך קוראים לך?" value="${esc(S.name)}" enterkeyhint="done" autocapitalize="words" spellcheck="false">
-        ${S.invite?`<button type="submit" class="btn big" data-mode="net">הצטרף לדו־קרב</button><button type="button" class="btn ghost" data-mode="cpu">מול המחשב</button>`
+        ${S.cupInvite?`<button type="submit" class="btn big" data-mode="cupjoin">הצטרף לליגת הנוקאאוט</button><button type="button" class="btn ghost" data-mode="cpu">מול המחשב</button>`:S.invite?`<button type="submit" class="btn big" data-mode="net">הצטרף לדו־קרב</button><button type="button" class="btn ghost" data-mode="cpu">מול המחשב</button>`
           :`<button type="submit" class="btn big" data-mode="cpu">מול המחשב</button><button type="button" class="btn big alt" data-mode="net">מול חבר ברשת</button>`}
 
-      </form><div class="more" role="group" aria-label="עוד מצבים"><button type="button" class="chip" data-mode="tour">טורניר</button><button type="button" class="chip" data-mode="surv">הישרדות</button><button type="button" class="chip" data-mode="daily">אתגר יומי</button><button type="button" class="chip" data-mode="stats">הסטטיסטיקה שלי</button></div><footer class="intro-foot"><button type="button" class="icon mute" data-mute aria-label="השתקה" aria-pressed="${audio.muted}">${audio.muted?'🔇':'🔊'}</button><span>Penalty Hero · גרסה <bdi dir="ltr">${VERSION}</bdi></span></footer></div>`,
+      </form><div class="more" role="group" aria-label="עוד מצבים"><button type="button" class="chip hot" data-mode="cup">ליגת נוקאאוט</button><button type="button" class="chip" data-mode="king">👑 מלך הפנדלים</button><button type="button" class="chip" data-mode="tour">גביע מול המחשב</button><button type="button" class="chip" data-mode="surv">הישרדות</button><button type="button" class="chip" data-mode="daily">אתגר יומי</button><button type="button" class="chip" data-mode="stats">הסטטיסטיקה שלי</button></div><footer class="intro-foot"><button type="button" class="icon mute" data-mute aria-label="השתקה" aria-pressed="${audio.muted}">${audio.muted?'🔇':'🔊'}</button><span>Penalty Hero · גרסה <bdi dir="ltr">${VERSION}</bdi></span></footer></div>`,
     el=>{const v=el.querySelector('video'),play=()=>{const p=v.play();p&&p.catch&&p.catch(()=>{})};play();const vis=()=>{document.hidden?v.pause():play()};document.addEventListener('visibilitychange',vis);el.addEventListener('pointerdown',play,{passive:true});
       const input=el.querySelector('#playerName');input.addEventListener('input',()=>setName(input.value));
-      const choose=mode=>{setName(input.value);S.mode=mode;if(mode==='stats')return statsScreen();if(mode==='daily')return daily();pickMine()};
+      const choose=mode=>{setName(input.value);S.mode=mode;if(mode==='stats')return statsScreen();if(mode==='king')return cup.kingScreen(intro);if(mode==='cup')return cup.home();if(mode==='cupjoin')return cup.register(S.cupInvite);if(mode==='daily')return daily();pickMine()};
       el.querySelector('form').addEventListener('submit',e=>{e.preventDefault();choose(e.submitter?.dataset.mode||(S.invite?'net':'cpu'))});
       for(const b of el.querySelectorAll('button[data-mode][type=button]'))b.addEventListener('click',()=>choose(b.dataset.mode));
       return()=>{document.removeEventListener('visibilitychange',vis);v.pause();v.removeAttribute('src');v.load()}})}
@@ -228,6 +229,8 @@ export function startApp(root,{audio}){
         e=>{if(e&&e.name==='AbortError')return;console.error(e);failed(e&&e.message||'תקלה במשחק')});
       return()=>{over=true;ac.abort();release();window.removeEventListener('beforeunload',guard);document.removeEventListener('visibilitychange',vis);audio.stopAll();try{arena.dispose()}catch(e){}if(debug)window.__ph=null;if(R){R.ended=null}}})}
 
+  const cup=cupFeature({S,show,top,crestOf,toast,store,getCatalog,clubById,loadSquad,buildSide,cleanName,nameOrDefault,setName,intro,game,keepAwake,audio,RULES_VERSION,loadTransport,pickClub:picker});
+  S.cupInvite=cup.parseInvite(params);
   /* ---------- start ---------- */
   show('boot',`<div class="boot"><img src="${ASSET('penalty-crest.webp')}" alt="" width="220" height="185"><p role="status">טוען…</p></div>`);
   /* While the player types a name and picks a club, the stadium is already on its way: the 3D code and the pictures

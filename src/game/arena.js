@@ -115,10 +115,10 @@ export function createArena(host,{debug=false,audio=null,force2d=false}={}){
     /** the deciding kick, or sudden death: a slow red pulse at the edges of the picture */
     pressure(v){host.classList.toggle('pressure',!!v)},
     /** Draw a resolved kick. Resolves when the keeper has landed and the taker reacts; a stuck picture cannot hang the duel. */
-    play(result,{onContact,onResult,signal}={}){return new Promise((resolve,reject)=>{if(disposed||signal?.aborted)return reject(new Aborted());let done=false;
-      const end=err=>{if(done)return;done=true;clearTimeout(t);signal?.removeEventListener('abort',abort);err?reject(err):resolve()};const abort=()=>end(new Aborted());signal?.addEventListener('abort',abort);
-      const t=setTimeout(()=>end(),9000);let told=false;const result1=()=>{if(told)return;told=true;try{onResult&&onResult()}catch(e){console.error(e)}};
-      try{stage.shoot(result,()=>{result1();end()},{contact:()=>{try{onContact&&onContact()}catch(e){}},result:result1})}catch(e){console.error(e);result1();end()}})},
+    play(result,{onContact,onResult,signal,decisive=false}={}){return new Promise((resolve,reject)=>{if(disposed||signal?.aborted)return reject(new Aborted());let done=false;if(decisive)host.classList.add('cine');
+      const end=err=>{if(done)return;done=true;host.classList.remove('cine');clearTimeout(t);signal?.removeEventListener('abort',abort);err?reject(err):resolve()};const abort=()=>end(new Aborted());signal?.addEventListener('abort',abort);
+      const t=setTimeout(()=>end(),10500);let told=false;const result1=()=>{if(told)return;told=true;try{onResult&&onResult()}catch(e){console.error(e)}};
+      try{stage.shoot(result,()=>{result1();end()},{contact:()=>{try{onContact&&onContact()}catch(e){}},result:result1,decisive})}catch(e){console.error(e);result1();end()}})},
     /**
      * The replay of the kick that ended the shoot-out, from the side of the goal at half speed. A tap skips it; it never outlasts 7 s.
      * Resolves when it is over. A picture without replay (the simple 2D view) resolves at once.
@@ -134,6 +134,6 @@ export function createArena(host,{debug=false,audio=null,force2d=false}={}){
       const skip=e=>{e.preventDefault();e.stopPropagation();end()};const t=setTimeout(end,9000);signal?.addEventListener('abort',end);host.addEventListener('pointerdown',skip,true);
       host.setAttribute('data-celebrating','1');try{stage.celebrate(end,{goal})}catch(e){console.error(e);end()}})},
     cheer(v){try{stage?.cheer(v)}catch(e){}},pause(){try{stage?.pause()}catch(e){}},resume(){try{stage?.resume()}catch(e){}},
-    dispose(){if(disposed)return;disposed=true;host.classList.remove('pressure','replaying');clearTimeout(flashT);clearTimeout(roleT);host.classList.remove('i-kick','i-keep');clearInterval(debugT);try{api._cancel&&api._cancel()}catch(e){}host.removeEventListener('contextmenu',stop);host.removeEventListener('selectstart',stop);host.removeEventListener('dragstart',stop);
+    dispose(){if(disposed)return;disposed=true;host.classList.remove('pressure','replaying','cine');clearTimeout(flashT);clearTimeout(roleT);host.classList.remove('i-kick','i-keep');clearInterval(debugT);try{api._cancel&&api._cancel()}catch(e){}host.removeEventListener('contextmenu',stop);host.removeEventListener('selectstart',stop);host.removeEventListener('dragstart',stop);
       try{stage?.dispose()}catch(e){}stage=null;host.innerHTML='';host.classList.remove('game-arena')}};
   return api}

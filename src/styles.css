@@ -124,3 +124,30 @@ input[type=text]:focus{outline:2px solid var(--go);outline-offset:1px;border-col
 .statlist{display:grid;gap:2px;padding:6px 14px}.stat{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);font-size:15px}.stat:last-child{border-bottom:0}.stat b{color:var(--gold)}
 .big{font-size:19px;margin:6px 0}.big b{color:var(--gold);font-size:26px}
 .ar-zones{display:none}
+
+/* the deciding kick: two black bars slide in, like a film */
+.game-arena::before{content:"";position:absolute;inset:0;z-index:9;pointer-events:none;background:linear-gradient(#000,#000) top/100% 0 no-repeat,linear-gradient(#000,#000) bottom/100% 0 no-repeat;transition:background-size .9s ease}
+.game-arena.cine::before{background-size:100% 7%,100% 7%}
+
+/* ---------- ליגת נוקאאוט ---------- */
+.chip.hot{background:rgba(233,196,106,.22);border-color:var(--gold)}.chip.on{background:var(--go);color:#10210a;border-color:transparent}
+.big-time{margin:2px 0 0;font:800 44px/1.1 ui-monospace,"SF Mono",Menlo,monospace;text-align:center;color:var(--gold)}
+.countdown{text-align:center;padding:10px 0 2px}.countdown small{display:block;color:var(--muted);font-size:15px}.countdown b{display:block;font:800 64px/1.1 ui-monospace,"SF Mono",Menlo,monospace;color:var(--go);letter-spacing:2px;text-shadow:0 0 24px rgba(198,242,78,.35)}
+.slots{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.slot{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;border-radius:12px;border:1px dashed var(--line);color:var(--muted);font-size:12.5px;text-align:center;min-height:86px;justify-content:center}
+.slot.on{border-style:solid;border-color:rgba(198,242,78,.55);background:rgba(198,242,78,.08);color:var(--ink)}.slot.me{box-shadow:0 0 0 2px var(--gold)}
+.slot b{font-weight:700;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.slot .crest-box{width:34px;height:40px}
+.round{margin:0 0 14px}.round h2{margin:0 2px 8px;font-size:16px;color:var(--gold)}
+.cm{border-radius:14px;background:rgba(255,255,255,.06);border:1px solid var(--line);margin:0 0 8px;overflow:hidden}.cm.ready{border-color:var(--gold)}.cm.wait{opacity:.6}
+.cp{display:flex;align-items:center;gap:8px;padding:7px 10px;min-height:46px}.cp .crest-box{width:26px;height:31px;flex:none}.cp b{flex:1;min-width:0;font-weight:700;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cp i{font-style:normal;font-weight:800;font-size:17px;min-width:22px;text-align:center}.cp i.wo{font-size:12px;color:var(--muted)}.cp.empty{color:var(--muted)}.cp.me b{color:var(--gold)}
+.cm .win{background:rgba(198,242,78,.12)}.cm .lose{opacity:.5}
+.tbl{width:100%;border-collapse:collapse;font-size:14.5px}.tbl th{color:var(--muted);font-weight:600;text-align:start;padding:4px 6px}.tbl td{padding:8px 6px;border-top:1px solid var(--line)}.tbl tr.me td{color:var(--gold);font-weight:700}.tbl small{color:var(--muted)}
+.tabs{display:flex;gap:8px;justify-content:center;margin:0 0 12px}
+.mine h2{font-size:17px}
+.trophy-body{align-items:center;text-align:center}.trophy{width:132px;margin:6px auto 0;filter:drop-shadow(0 8px 24px rgba(242,193,78,.5));animation:lift 1.4s cubic-bezier(.2,.9,.3,1.2) both}
+@keyframes lift{from{transform:translateY(60px) scale(.6);opacity:0}to{transform:none;opacity:1}}
+.champ-title{margin:8px 0 0;font-size:30px;font-weight:900;color:var(--gold)}.champ-name{font-size:26px}
+.confetti{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:3}.confetti i{position:absolute;top:-14px;left:var(--x);width:9px;height:14px;background:var(--c);border-radius:2px;animation:fall 3.6s linear var(--d) infinite}
+@keyframes fall{to{transform:translateY(105vh) rotate(540deg)}}
+@media (prefers-reduced-motion:reduce){.confetti i,.trophy{animation:none}}

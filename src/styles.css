@@ -159,3 +159,4 @@ input[type=text]:focus{outline:2px solid var(--go);outline-offset:1px;border-col
 .avrow{display:flex;align-items:center;gap:8px;margin:6px 0}.avrow input[type=text]{flex:1;min-width:0}.btn.camera{width:auto;min-height:44px;flex:none;padding:10px 12px;font-size:14px;white-space:nowrap;cursor:pointer;margin:0}
 .vh{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none}.icons{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 2px}.icons .chip{font-size:18px;padding:5px 11px}
 .slot .av.big{width:46px;height:46px}.versus.one .av.huge{margin:0 auto 6px}
+.tbl td.who{display:flex;align-items:center;gap:8px}.tbl td.who span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

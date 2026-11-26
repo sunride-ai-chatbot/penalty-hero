@@ -14,6 +14,7 @@ create table if not exists public.king_cups (
   goals       smallint    not null check (goals between 0 and 80),
   kicks       smallint    not null check (kicks between 0 and 100),
   players     smallint    not null check (players between 4 and 8),
+  avatar      text        check (avatar is null or char_length(avatar) <= 12000),
   created_at  timestamptz not null default now(),
   constraint king_cups_goals_le_kicks check (goals <= kicks),
   constraint king_cups_one_row_per_cup unique (cup_id, player_id)
@@ -26,9 +27,14 @@ create policy "king read"   on public.king_cups for select to anon, authenticate
 create policy "king insert" on public.king_cups for insert to anon, authenticated with check (true);
 grant select, insert on public.king_cups to anon, authenticated;
 
-create or replace view public.king_board with (security_invoker = true) as
+-- if the table was made before the pictures existed, this adds the column; running the whole file again is safe
+alter table public.king_cups add column if not exists avatar text check (avatar is null or char_length(avatar) <= 12000);
+
+drop view if exists public.king_board;
+create view public.king_board with (security_invoker = true) as
 select player_id,
        (array_agg(name order by created_at desc))[1]            as name,
+       (array_agg(avatar order by created_at desc) filter (where avatar is not null))[1] as avatar,
        count(*)::int                                           as cups,
        (count(*) filter (where champion))::int                 as titles,
        sum(matches_won)::int                                   as wins,

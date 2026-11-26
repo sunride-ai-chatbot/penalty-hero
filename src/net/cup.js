@@ -25,7 +25,7 @@ export function createCupNet({connect,cupId,kickoffAt,me,now=()=>Date.now(),on={
   const lite=()=>roster&&{list:roster.list.map(({av,...p})=>p),salt:roster.salt};   // the pictures travel in `reg`, not in every `st`
   const sendSt=()=>{lastSt=now();send({t:'st',roster:lite(),res:cup?resultsOf(cup):[]})};
   function onMessage(m){if(closed||!m||typeof m!=='object'||m.k!=='cup'||m.cup!==cupId||m.v!==CUP_PROTOCOL||typeof m.f!=='string'||m.f===self.id)return;seen.set(m.f,now());
-    if(m.t==='reg'&&m.p&&typeof m.p.id==='string'&&m.p.id===m.f){const av=cleanAvatar(m.p.av),old=regs.get(m.f);if(av)avatars.set(m.f,av);if(!old||old.name!==String(m.p.name||'').slice(0,24)||old.av!==av){regs.set(m.f,{id:m.f,name:String(m.p.name||'שחקן').slice(0,24),team:String(m.p.team||''),av,at:old?old.at:Number.isFinite(+m.p.at)?+m.p.at:now()});changed()}
+    if(m.t==='reg'&&m.p&&typeof m.p.id==='string'&&m.p.id===m.f){const av=cleanAvatar(m.p.av),old=regs.get(m.f);if(av)avatars.set(m.f,av);else avatars.delete(m.f);if(!old||old.name!==String(m.p.name||'').slice(0,24)||old.av!==av){regs.set(m.f,{id:m.f,name:String(m.p.name||'שחקן').slice(0,24),team:String(m.p.team||''),av,at:old?old.at:Number.isFinite(+m.p.at)?+m.p.at:now()});changed()}
       if(roster&&!cup?.players[m.f])sendSt();return}                       // a late one: tell him the cup is on
     if(m.t==='st'){const had=!!cup;if(!roster&&m.roster)adopt(m.roster);const grew=cup?merge(m.res):false;if(grew&&!closed){changed();if(had)sendSt()}}}
   function tick(){if(closed)return;const t=now();
@@ -41,7 +41,9 @@ export function createCupNet({connect,cupId,kickoffAt,me,now=()=>Date.now(),on={
       const here=id=>id===self.id||t-(seen.get(id)||0)<T.fbSeen;if(here(v.a)||here(v.b))continue;
       if(!cup.players[self.id])continue;report({r:v.r,m:v.m,a:v.a,b:v.b,w:v.a,ga:0,gb:0,ka:0,kb:0,kind:'fb'})}}
   function report(res){if(!cup||!applyResult(cup,res))return false;sendSt();changed();return true}
-  const api={id:self.id,cupId,kickoffAt,get status(){return status},get cup(){return cup},get roster(){return roster},regs:()=>order(),
+  /** he changed his picture: everybody hears it with the next sign-up message, sent now */
+  function setAvatar(v){self.av=cleanAvatar(v);const r=regs.get(self.id);if(r)regs.set(self.id,{...r,av:self.av});if(self.av)avatars.set(self.id,self.av);else avatars.delete(self.id);if(ch&&status!=='cancelled'){lastReg=now();send({t:'reg',p:myReg()})}changed()}
+  const api={id:self.id,setAvatar,cupId,kickoffAt,get status(){return status},get cup(){return cup},get roster(){return roster},regs:()=>order(),
     avatarOf:id=>avatars.get(id)||(id===self.id?cleanAvatar(self.av):''),seen:id=>id===self.id?now():seen.get(id)||0,here:(id,within=T.fbSeen)=>id===self.id||now()-(seen.get(id)||0)<within,report,
     close(){if(closed)return;closed=true;clearInterval(iv);try{ch&&ch.close()}catch(e){}ch=null}};
   regs.set(self.id,{id:self.id,name:self.name,team:self.team,av:cleanAvatar(self.av),at:now()});

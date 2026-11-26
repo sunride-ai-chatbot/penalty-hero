@@ -28,3 +28,7 @@ test('pictures travel with the sign-up and are known to everybody, also after th
   const a=join(bus,'a',kick,{me:()=>({id:'a',name:'א',team:'t',av:photo})}),b=join(bus,'b',kick,{me:()=>({id:'b',name:'ב',team:'t',av:'e:⚽'})});await wait(150);
   assert.equal(a.avatarOf('b'),'e:⚽');assert.equal(b.avatarOf('a'),photo);await wait(500);assert.equal(b.avatarOf('a'),photo);
   const c=join(bus,'c',kick,{me:()=>({id:'c',name:'ג',team:'t',av:'<script>'})});await wait(300);assert.equal(a.avatarOf('c'),'');for(const n of [a,b,c])n.close()});
+
+test('a changed or removed picture reaches the others at once, in the lobby and after the roster',async()=>{const bus=memoryBus(),kick=Date.now()+400,a=join(bus,'a',kick),b=join(bus,'b',kick);await wait(100);assert.equal(b.avatarOf('a'),'');
+  a.setAvatar('e:🦁');await wait(80);assert.equal(b.avatarOf('a'),'e:🦁');await wait(600);assert.equal(b.status,'started');
+  a.setAvatar('data:image/jpeg;base64,/9j/4AAQ');await wait(80);assert.equal(b.avatarOf('a'),'data:image/jpeg;base64,/9j/4AAQ');a.setAvatar('');await wait(80);assert.equal(b.avatarOf('a'),'');a.close();b.close()});

@@ -78,12 +78,17 @@ export function cupFeature(C){
     if(n.cup&&champion(n.cup)&&!X.done){X.done=true;finish()}}
   const screen=()=>document.querySelector('#app')?.dataset.screen||'';
 
+  /* "my picture": change it any time, in the waiting room or in the bracket; everybody gets the new one */
+  function mountAvEditor(box){if(!box)return;const draw=()=>{box.innerHTML=`<h2>התמונה שלך</h2><div class="avrow">${avatarHtml(S.avatar,S.name,'big')}<label class="btn camera" for="avfile">📷 העלה תמונה</label><input type="file" id="avfile" class="vh" accept="image/*"></div><div class="icons" role="group" aria-label="או בחר אייקון">${ICONS.map(i=>`<button type="button" class="chip${S.avatar==='e:'+i?' on':''}" data-ic="${i}">${i}</button>`).join('')}${S.avatar?'<button type="button" class="chip" data-ic="">בלי תמונה</button>':''}</div>`;
+      const set=v=>{S.avatar=cleanAvatar(v);store.set('avatar',S.avatar);X.net?.setAvatar(S.avatar);draw();if(screen()==='cuplobby')paintLobby();else if(screen()==='cupbracket')paintBracket()};
+      for(const b of box.querySelectorAll('[data-ic]'))b.onclick=()=>set(b.dataset.ic?'e:'+b.dataset.ic:'');
+      box.querySelector('#avfile').onchange=async e=>{const f=e.target.files&&e.target.files[0];if(!f)return;try{const d=await photoToAvatar(f);if(!d)return toast('לא הצלחנו להשתמש בתמונה הזו');set(d)}catch(x){toast('לא הצלחנו לפתוח את התמונה')}}};draw()}
   /* ---------- the waiting room: a countdown and the places filling up ---------- */
   function lobby(){const def=S.cupDef;
     show('cuplobby',top('ליגת נוקאאוט',true,'מתחיל ב־'+hhmm(def.at))+`<main class="body center"><div class="countdown"><small>הבעיטה הראשונה בעוד</small><b id="cd">--:--</b></div>
       <div class="slots" id="slots"></div><p class="note" id="lnote" role="status"></p>
-      <div class="card"><button type="button" class="btn big" id="share">שתף קישור לטורניר</button><input class="linkbox" dir="ltr" readonly value="${esc(inviteLink(def))}" aria-label="קישור לטורניר"></div></main>`,el=>{
-      const release=keepAwake();el.querySelector('[data-back]').onclick=()=>{closeCup();home()};
+      <div class="card"><button type="button" class="btn big" id="share">שתף קישור לטורניר</button><input class="linkbox" dir="ltr" readonly value="${esc(inviteLink(def))}" aria-label="קישור לטורניר"></div><section class="card" id="avcard"></section></main>`,el=>{
+      const release=keepAwake();mountAvEditor(el.querySelector('#avcard'));el.querySelector('[data-back]').onclick=()=>{closeCup();home()};
       el.querySelector('#share').onclick=async()=>{const link=inviteLink(def),data={title:'ליגת נוקאאוט פנדלים',text:`${nameOrDefault()} מזמין אותך לליגת פנדלים. מתחילים ב־${hhmm(def.at)}`,url:link};try{if(navigator.share){await navigator.share(data);return}}catch(e){if(e&&e.name==='AbortError')return}
         try{await navigator.clipboard.writeText(link);toast('הקישור הועתק')}catch(e){el.querySelector('.linkbox').select();toast('סמנו והעתיקו את הקישור')}};
       const iv=setInterval(()=>{const cd=el.querySelector('#cd');if(cd)cd.textContent=clock(def.at-Date.now())},250);paintLobby();return()=>{clearInterval(iv);release()}})}
@@ -95,8 +100,8 @@ export function cupFeature(C){
 
   /* ---------- the bracket and the scoreboard ---------- */
   function bracket(){const n=X.net;if(!n?.cup)return lobby();
-    show('cupbracket',top('ליגת נוקאאוט',true,'לוח הטורניר')+`<main class="body"><section class="card mine" id="mine"></section><div id="rounds"></div><section class="card"><h2>טבלת ניקוד</h2><div id="board"></div></section></main>`,el=>{
-      const release=keepAwake();el.querySelector('[data-back]').onclick=()=>{closeCup();home()};paintBracket();const iv=setInterval(()=>{tickMine()},500);return()=>{clearInterval(iv);release()}});
+    show('cupbracket',top('ליגת נוקאאוט',true,'לוח הטורניר')+`<main class="body"><section class="card mine" id="mine"></section><div id="rounds"></div><section class="card"><h2>טבלת ניקוד</h2><div id="board"></div></section><section class="card" id="avcard"></section></main>`,el=>{
+      const release=keepAwake();mountAvEditor(el.querySelector('#avcard'));el.querySelector('[data-back]').onclick=()=>{closeCup();home()};paintBracket();const iv=setInterval(()=>{tickMine()},500);return()=>{clearInterval(iv);release()}});
     if(champion(n.cup)&&!X.shown){X.done=true;finish(true)}}
   function paintBracket(){const n=X.net,cup=n?.cup;if(!cup||screen()!=='cupbracket')return;
     const rounds=[];for(let r=0;r<roundsOf(cup.size);r++){const ms=allMatches(cup).filter(v=>v.r===r&&v.status!=='empty');
@@ -147,7 +152,7 @@ export function cupFeature(C){
 
   /* ---------- the end: my row in the table, and the trophy ---------- */
   async function finish(show1=false){const n=X.net,cup=n?.cup;if(!cup)return;const c=champion(cup);if(!c)return;
-    if(!X.submitted&&cup.players[S.pid]){X.submitted=true;const row=rowFor(cup,n.cupId,S.pid);const h=history();const st=standings(cup).find(r=>r.id===S.pid);
+    if(!X.submitted&&cup.players[S.pid]){X.submitted=true;const row=rowFor(cup,n.cupId,S.pid,n.avatarOf(S.pid)||S.avatar);const h=history();const st=standings(cup).find(r=>r.id===S.pid);
       h.push({id:n.cupId,at:Date.now(),champion:c===S.pid,wins:st?.wins||0,goals:st?.goals||0,kicks:st?.kicks||0,players:Object.keys(cup.players).length});store.set('cups',JSON.stringify(h.slice(-30)));
       X.kingState=row?'fail':'small';if(row){const cfg=await kingCfg();if(cfg){const r=await kingApi(cfg).submit(row);X.kingState=r.ok?'ok':'fail';if(!r.ok)console.warn('king',r.status)}}store.set('cupActive','')}
     if(show1||(screen()!=='game'&&!X.shown))trophy()}
@@ -175,7 +180,7 @@ export function cupFeature(C){
         const r=await kingApi(cfg).board();if(!el.isConnected||!box.isConnected)return;
         if(!r.ok){box.innerHTML=r.setup?'<p class="err">הטבלה העולמית עוד לא הופעלה. צריך להריץ פעם אחת את supabase/king.sql בלוח הבקרה של Supabase.</p>':'<p class="err">אין חיבור לטבלה כרגע. נסו שוב בעוד רגע.</p>';return}
         const rows=rankKing(r.rows,by);if(!rows.length){box.innerHTML='<p class="note">עוד אין אלופים. הטורניר הראשון יכניס את הראשון.</p>';return}
-        box.innerHTML=`<table class="tbl king"><thead><tr><th>#</th><th>שחקן</th><th>🏆</th><th>טורנירים</th><th>הצלחה</th></tr></thead><tbody>${rows.slice(0,50).map((x,i)=>`<tr class="${x.player_id===S.pid?'me':''}"><td>${i===0?'👑':i+1}</td><td>${esc(x.name)}</td><td>${x.titles}</td><td>${x.cups}</td><td>${x.pct}% <small><bdi>${x.goals}/${x.kicks}</bdi></small></td></tr>`).join('')}</tbody></table>`})()})}
+        box.innerHTML=`<table class="tbl king"><thead><tr><th>#</th><th>שחקן</th><th>🏆</th><th>טורנירים</th><th>הצלחה</th></tr></thead><tbody>${rows.slice(0,50).map((x,i)=>`<tr class="${x.player_id===S.pid?'me':''}"><td>${i===0?'👑':i+1}</td><td class="who">${avatarHtml(x.avatar,x.name)}<span>${esc(x.name)}</span></td><td>${x.titles}</td><td>${x.cups}</td><td>${x.pct}% <small><bdi>${x.goals}/${x.kicks}</bdi></small></td></tr>`).join('')}</tbody></table>`})()})}
 
   /* an invitation link: ?cup=ID&at=EPOCH */
   const parseInvite=params=>{const id=String(params.get('cup')||'').replace(/[^A-Za-z0-9]/g,'').slice(0,12),at=+params.get('at');return id.length>=3&&Number.isFinite(at)&&at>1e12?{id,at}:null};

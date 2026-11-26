@@ -4,7 +4,7 @@
 //   keeping  touch the goal and drag: a ring follows the finger, a dotted line runs from the keeper to it; release to
 //            commit to that part of the goal. No arrows and no icons on the screen.
 // Pointer Events with capture; pointercancel never kicks; every listener and timer dies with the AbortSignal.
-import {bowOf as bowOfPath} from '../core/gesture.js';
+import {bowOf as bowOfPath,bowDepth} from '../core/gesture.js';
 import {clamp,meterPosition,timingWindow,swayOf,swayAt,frameOf,zoneOf,pointOfDive,ZONE,DIRS,aiKick,makeRng} from '../core/rules.js';
 const TOUCH_LIFT=56;                 // px: the sight rides above a finger so it is never hidden under it
 const DIR_NAME={UL:'למעלה שמאלה',U:'למעלה',UR:'למעלה ימינה',L:'שמאלה',C:'להישאר באמצע',R:'ימינה',DL:'למטה שמאלה',D:'למטה',DR:'למטה ימינה'};
@@ -16,10 +16,10 @@ export function createArena(host,{debug=false,audio=null,force2d=false}={}){
   host.classList.add('game-arena');host.tabIndex=0;
   host.innerHTML=`<div class="ar-view"></div><div class="ar-load" role="status">טוען את האצטדיון…</div>
     <div class="ar-role" aria-live="assertive"></div><div class="ar-chip" hidden></div><div class="ar-flash" aria-live="assertive"></div><div class="ar-hint" aria-live="polite"></div>
-    <div class="ar-sight" hidden><b></b></div><div class="ar-target" hidden></div><svg class="ar-pull" hidden aria-hidden="true"><line/></svg>
+    <div class="ar-sight" hidden><b></b></div><div class="ar-target" hidden></div><svg class="ar-pull" hidden aria-hidden="true"><line/></svg><svg class="ar-flight" hidden aria-hidden="true"><path/></svg>
     <div class="ar-meter" dir="ltr" hidden aria-label="מד דיוק ועוצמה"><span class="ar-window"></span><i class="ar-marker"></i><em>חלש</em><em>חזק</em></div>
     <div class="ar-timer" hidden aria-hidden="true"><i></i></div><div class="ar-curl" hidden aria-live="polite"></div><div class="ar-replay" hidden><b>חזרה</b><span>גע כדי לדלג</span></div><div class="ar-pulse" aria-hidden="true"></div><div class="ar-a11y"></div>${debug?'<pre class="ar-debug" dir="ltr"></pre><div class="ar-zones"></div>':''}`;
-  const $=s=>host.querySelector(s),view=$('.ar-view'),loadEl=$('.ar-load'),flashEl=$('.ar-flash'),hintEl=$('.ar-hint'),sight=$('.ar-sight'),target=$('.ar-target'),pull=$('.ar-pull'),meter=$('.ar-meter'),timer=$('.ar-timer'),a11y=$('.ar-a11y'),curlBtn=$('.ar-curl'),replayEl=$('.ar-replay');
+  const $=s=>host.querySelector(s),view=$('.ar-view'),loadEl=$('.ar-load'),flashEl=$('.ar-flash'),hintEl=$('.ar-hint'),sight=$('.ar-sight'),target=$('.ar-target'),pull=$('.ar-pull'),meter=$('.ar-meter'),timer=$('.ar-timer'),a11y=$('.ar-a11y'),curlBtn=$('.ar-curl'),replayEl=$('.ar-replay'),flight=$('.ar-flight');
   const CURL_TEXT={'0':'בעיטה ישרה','1':'עיקול ימינה ↷','-1':'עיקול שמאלה ↶'};
   let stage=null,disposed=false,flashT=0,roleT=0,debugT=0,lastInfo={},curlPref=0;const rng=makeRng((Math.random()*2**32)>>>0);
   const stop=e=>e.preventDefault();host.addEventListener('contextmenu',stop);host.addEventListener('selectstart',stop);host.addEventListener('dragstart',stop);
@@ -66,7 +66,10 @@ export function createArena(host,{debug=false,audio=null,force2d=false}={}){
       return ask(signal,({on,finish,loop})=>{let aim={x:0,y:1.15},touched=false,pointer=null,heldAt=null;const ck=shownClock();
         meter.hidden=false;sight.hidden=false;timer.hidden=false;let path=[];/* the curve is the finger's own path: a clear bow to one side while aiming bends the kick that way */
         const bowOf=()=>bowOfPath(path);
-        const paintCurl=()=>{curlPref=bowOf()};paintCurl();   // no label, no button: the curve is only the shape of the finger's path
+        const paintCurl=()=>{curlPref=bowOf()};paintCurl();
+        // a pale line from the ball to the aim point shows the flight: straight, or bent by as much as the finger bowed
+        const drawFlight=()=>{if(!touched){flight.setAttribute('hidden','');return}const r=host.getBoundingClientRect(),c=cur(),[tx,ty]=stage.toScreen(c.x,c.y),[gx,gy]=stage.toScreen(0,0),sx=gx,sy=Math.min(r.height-60,gy+(r.height-gy)*.78),dx=tx-sx,dy=ty-sy,len=Math.hypot(dx,dy)||1,d=Math.max(-120,Math.min(120,bowDepth(path)));
+          const mx=(sx+tx)/2+dy/len*d*2,my=(sy+ty)/2-dx/len*d*2;flight.removeAttribute('hidden');flight.firstElementChild.setAttribute('d',`M${sx.toFixed(1)} ${sy.toFixed(1)}Q${mx.toFixed(1)} ${my.toFixed(1)} ${tx.toFixed(1)} ${ty.toFixed(1)}`)};   // no label, no button: the curve is only the shape of the finger's path
         
         const w=meter.querySelector('.ar-window'),mk=meter.querySelector('.ar-marker');w.style.left=(win.from*100).toFixed(2)+'%';w.style.width=(win.width*100).toFixed(2)+'%';
         const cur=()=>{const s=swayAt(ck.ms/1000,amp);return {x:aim.x+s.dx,y:Math.max(.05,aim.y+s.dy)}};
@@ -84,10 +87,10 @@ export function createArena(host,{debug=false,audio=null,force2d=false}={}){
         a11y.innerHTML=DIRS.map(d=>`<button type="button" class="sr" data-k="${d}">בעיטה ${DIR_NAME[d].replace('להישאר באמצע','לאמצע')}</button>`).join('');
         on(a11y,'click',e=>{const b=e.target.closest('[data-k]');if(!b)return;const z=ZONE[b.dataset.k];aim={x:z[0]*1.1,y:z[1]};touched=true;fire(true)});
         loop(()=>{const left=1-ck.tick()/timeMs;timer.firstElementChild.style.transform=`scaleX(${Math.max(0,left).toFixed(3)})`;const m=pos();mk.style.left=((m??0)*100).toFixed(2)+'%';meter.classList.toggle('live',m!==null);meter.classList.toggle('in',m!==null&&m>=win.from&&m<=win.to);
-          const c=cur();place(sight,c.x,c.y);sight.classList.toggle('out',frameOf(c.x,c.y)!=='in');if(left<=0)fire(true)});
+          const c=cur();place(sight,c.x,c.y);drawFlight();sight.classList.toggle('out',frameOf(c.x,c.y)!=='in');if(left<=0)fire(true)});
         try{host.focus({preventScroll:true})}catch(e){}
         api._kick=(x,y,m,c=0)=>finish({aim:{x,y},meter:m,curl:c,auto:false});   // tests
-        return()=>{curlBtn.hidden=true;meter.hidden=sight.hidden=timer.hidden=true;meter.classList.remove('live','in');a11y.innerHTML='';api._kick=null;try{pointer!==null&&host.releasePointerCapture(pointer)}catch(e){}}})},
+        return()=>{flight.setAttribute('hidden','');curlBtn.hidden=true;meter.hidden=sight.hidden=timer.hidden=true;meter.classList.remove('live','in');a11y.innerHTML='';api._kick=null;try{pointer!==null&&host.releasePointerCapture(pointer)}catch(e){}}})},
     /**
      * The user keeps goal. Resolves {d:{x,y}, auto}: the point where the ring was released (the keeper goes exactly there); the middle when time runs out.
      */

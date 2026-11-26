@@ -69,7 +69,9 @@ await step('touch: hold, drag and release kicks exactly once; a cancelled touch 
   assert.equal(win.bg,'rgb(255, 255, 255)');assert.ok(win.w>=5);assert.ok(win.z>=9&&!win.covered,'the white window is above the picture');
   const box=await p.locator('#arena').boundingBox();const count=()=>p.evaluate(()=>[...document.querySelectorAll('.marks i')].filter(i=>i.className).length);const n0=await count();
   const fire=(type,x,y,id=7)=>p.evaluate(([type,x,y,id])=>{const el=document.querySelector('#arena');el.dispatchEvent(new PointerEvent(type,{pointerId:id,pointerType:'touch',isPrimary:true,clientX:x,clientY:y,bubbles:true,cancelable:true,button:0}))},[type,x,y,id]);
-  await fire('pointerdown',box.x+200,box.y+300);await p.waitForTimeout(150);assert.ok(await p.evaluate(()=>document.querySelector('.ar-meter').classList.contains('live')));await fire('pointercancel',box.x+200,box.y+300);await p.waitForTimeout(250);
+  await fire('pointerdown',box.x+200,box.y+300);await p.waitForTimeout(150);assert.ok(await p.evaluate(()=>document.querySelector('.ar-meter').classList.contains('live')));await fire('pointermove',box.x+215,box.y+250);await fire('pointermove',box.x+235,box.y+200);await fire('pointermove',box.x+215,box.y+150);await fire('pointermove',box.x+190,box.y+100);await p.waitForTimeout(250);
+  const fl=await p.evaluate(()=>{const f=document.querySelector('.ar-flight');return {shown:!f.hasAttribute('hidden'),d:f.firstElementChild.getAttribute('d')}});assert.ok(fl.shown&&/Q/.test(fl.d),'a pale flight line follows the finger');
+  await fire('pointercancel',box.x+200,box.y+300);await p.waitForTimeout(250);
   assert.ok(await p.evaluate(()=>!!window.__ph.arena._kick),'a cancelled touch did not kick');assert.equal(await p.evaluate(()=>String(getSelection())),'');
   const [gx,gy]=await p.evaluate(()=>window.__ph.arena.stage.toScreen(1.2,1.0));const fx=box.x+gx,fy=box.y+gy+56;   // a finger placed so the sight lands inside the goal
   await fire('pointerdown',box.x+120,fy+40);await p.waitForTimeout(120);await fire('pointermove',fx,fy);await p.waitForTimeout(60);

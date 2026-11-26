@@ -7,3 +7,11 @@ export function bowOf(path){
   for(const q of path){const off=((q.x-a.x)*dy-(q.y-a.y)*dx)/len;if(Math.abs(off)>Math.abs(best)){best=off;bx=dy/len*off}}
   return Math.abs(best)>=24&&Math.abs(best)/len>=.18&&Math.abs(bx)>=14?(bx>0?1:-1):0;
 }
+
+/** how far the finger's path bows from the straight line, in px (signed, along the normal (dy,-dx)/len), or 0 when it is read as straight: the same test as bowOf */
+export function bowDepth(path){
+  if(!bowOf(path))return 0;
+  const a=path[0],b=path[path.length-1],dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy);let best=0;
+  for(const q of path){const off=((q.x-a.x)*dy-(q.y-a.y)*dx)/len;if(Math.abs(off)>Math.abs(best))best=off}
+  return best;
+}

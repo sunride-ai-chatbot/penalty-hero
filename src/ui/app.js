@@ -191,7 +191,7 @@ export function startApp(root,{audio}){
     show('game',`<div class="hud"><div class="hud-side"><button type="button" class="icon" id="quit" aria-label="יציאה מהדו־קרב">✕</button><button type="button" class="icon mute" data-mute aria-label="השתקה" aria-pressed="${audio.muted}">${audio.muted?'🔇':'🔊'}</button></div><div class="hud-rows">${row(me)}${row(other)}</div></div>
       <div class="arena" id="arena"></div><div class="who" id="who" aria-live="polite"></div><div class="panel" id="panel" hidden></div>`,el=>{
       const release=keepAwake();const guard=e=>{if(net&&!over){e.preventDefault();e.returnValue=''}};window.addEventListener('beforeunload',guard);
-      arena=createArena(el.querySelector('#arena'),{debug,audio,force2d});if(debug)window.__ph={arena,sides,me,net};audio.bedOn();
+      arena=createArena(el.querySelector('#arena'),{debug,audio,force2d});if(debug)window.__ph={arena,sides,me,net};audio.bedOn();audio.whistle();
       preloadFaces([sides.a,sides.b]);
       const hud={turn({turn,taker,keeper,iKick,takerSide,keeperSide}){for(const r of el.querySelectorAll('.hud-row'))r.classList.toggle('on',r.dataset.side===turn.side);
           const kit=kitsFor(takerSide,keeperSide).kit;   /* the face waits in the club's colour with the shirt number until the photograph is in */
@@ -213,7 +213,7 @@ export function startApp(root,{audio}){
       const vis=()=>{if(document.hidden){arena.pause();audio.suspend()}else{arena.resume();audio.resume()}};document.addEventListener('visibilitychange',vis);
       const failed=message=>{if(over)return;stop();const p=el.querySelector('#panel');p.hidden=false;p.innerHTML=`<div class="end bad"><h2>המשחק הופסק</h2><p>${esc(message)}</p><button type="button" class="btn big" id="home">חזרה למסך הפנדלים</button></div>`;p.querySelector('#home').onclick=()=>{if(R)R.fail=null;exit()}};
       if(R)R.fail=failed;
-      (runner?runner({arena,audio,hud,signal:ac.signal}):runDuel({arena,audio,sides,me,first,net,hud,signal:ac.signal})).then(res=>{over=true;audio.bedOff();if(!runner){recordDuel(S.stats,{won:res.won});saveStats();if(res.won)audio.win();if(net)net.finish()}else saveStats();
+      (runner?runner({arena,audio,hud,signal:ac.signal}):runDuel({arena,audio,sides,me,first,net,hud,signal:ac.signal})).then(res=>{over=true;audio.bedOff();audio.whistle(true);if(!runner){recordDuel(S.stats,{won:res.won});saveStats();if(res.won)audio.win();if(net)net.finish()}else saveStats();
         if(custom){const v=custom.end(res),p=el.querySelector('#panel');p.hidden=false;if(v.good&&runner)audio.win();p.innerHTML=`<div class="end ${v.good?'good':'bad'}"><h2>${esc(v.title)}</h2>${v.lines.map(l=>`<p class="note">${l}</p>`).join('')}${v.buttons.map(([id,label,fn,cls,keep])=>`<button type="button" class="btn ${cls==='ghost'?'ghost':cls==='alt'?'big alt':'big'}" data-act="${id}">${esc(label)}</button>`).join('')}</div>`;
           for(const b of v.buttons)p.querySelector(`[data-act="${b[0]}"]`).onclick=()=>{b[4]?b[2]():(over=true,b[2]())};return}
         const p=el.querySelector('#panel');p.hidden=false;const paintEnd=(status='')=>{p.innerHTML=`<div class="end ${res.won?'good':'bad'}"><h2>${res.won?'ניצחת בדו־קרב!':'הפסדת בדו־קרב'}</h2>

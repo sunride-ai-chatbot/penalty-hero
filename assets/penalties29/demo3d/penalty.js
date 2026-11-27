@@ -47,7 +47,7 @@ export function createPenaltyView(host,opts={}){
     drop(keeper);drop(taker);
     keeper=makeRosterPlayer(scene,{slot:'GK',side:1,number:o.gkNumber||1,kit:o.gkKit||'#f2b233',trim:'#10151d',pid:'k',team:'k',name:o.gkName||''},0);
     taker=makeRosterPlayer(scene,{slot:'FW',side:0,number:o.number??'',kit:o.kit||'#c6f24e',trim:o.trim||'#10151d',pid:'t',team:'t',name:o.name||''},1);
-    try{world.setMood(o.mood)}catch(e){}lefty=!!o.left;if(film)film.flip=lefty;   // a left-footed taker: the same footage mirrored, the camera mirrored with it (the print on the shirt stays upright)
+    try{ball&&ball.skin(o.skin)}catch(e){}try{world.setMood(o.mood)}catch(e){}lefty=!!o.left;if(film)film.flip=lefty;   // a left-footed taker: the same footage mirrored, the camera mirrored with it (the print on the shirt stays upright)
     film?.identify(o);kf?.identify(o.gkKit,o.gkTrim||'#10151d');lastO=o;try{world.crowd.dress(o.kit||'#c6f24e',o.oppKit||'#e9edf2')}catch(e){}
   }
   function saveCamera(){camBase.pos.copy(camera.position);camBase.quat.copy(camera.quaternion);camBase.fov=camera.fov}
@@ -218,7 +218,7 @@ export function createPenaltyView(host,opts={}){
     /** tests: advance the picture by hand while paused */
     step(seconds){let left=seconds;while(left>1e-9){const dt=Math.min(1/60,left);advance(dt);left-=dt}draw()},
     /** for the hidden test view */
-    debug(){return {fps:fps.value,clip:film?.shown?.clip||null,frame:film?.shown?.frame??-1,contactFrame:film?Math.floor(film.contact*20):null,contactAt:shot?.contactAt??null,clock,keeper:K.state,keeperZ:+K.z.toFixed(3),keeperSide:K.side,ball:{...B},filmed:!!film?.loaded,power:shot?.r?.power??null,fx:+fx.scale.toFixed(2),replay:rep,shake:+fx.shake.toFixed(4),calls:renderer?.info?.render?.calls,textures:renderer?.info?.memory?.textures,geometries:renderer?.info?.memory?.geometries}},
+    debug(){return {mood:world?.mood,skin:ball?.look?.(),fps:fps.value,clip:film?.shown?.clip||null,frame:film?.shown?.frame??-1,contactFrame:film?Math.floor(film.contact*20):null,contactAt:shot?.contactAt??null,clock,keeper:K.state,keeperZ:+K.z.toFixed(3),keeperSide:K.side,ball:{...B},filmed:!!film?.loaded,power:shot?.r?.power??null,fx:+fx.scale.toFixed(2),replay:rep,shake:+fx.shake.toFixed(4),calls:renderer?.info?.render?.calls,textures:renderer?.info?.memory?.textures,geometries:renderer?.info?.memory?.geometries}},
     dispose};
   try{
     renderer=new T.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.outputColorSpace=T.SRGBColorSpace;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=.95;renderer.shadowMap.type=T.PCFSoftShadowMap;

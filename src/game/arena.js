@@ -12,7 +12,7 @@ class Aborted extends Error{constructor(){super('aborted');this.name='AbortError
 /* a clock that counts only what was shown: a slow frame, or a tab that was away, adds a tenth of a second at most */
 const shownClock=()=>{let last=performance.now(),ms=0;return {tick(){const n=performance.now();ms+=Math.min(100,Math.max(0,n-last));last=n;return ms},get ms(){return ms}}};
 
-export function createArena(host,{debug=false,audio=null,force2d=false}={}){
+export function createArena(host,{debug=false,audio=null,force2d=false,look=null}={}){
   host.classList.add('game-arena');host.tabIndex=0;
   host.innerHTML=`<div class="ar-view"></div><div class="ar-load" role="status">טוען את האצטדיון…</div>
     <div class="ar-role" aria-live="assertive"></div><div class="ar-chip" hidden></div><div class="ar-flash" aria-live="assertive"></div><div class="ar-hint" aria-live="polite"></div>
@@ -22,6 +22,13 @@ export function createArena(host,{debug=false,audio=null,force2d=false}={}){
   const $=s=>host.querySelector(s),view=$('.ar-view'),loadEl=$('.ar-load'),flashEl=$('.ar-flash'),hintEl=$('.ar-hint'),sight=$('.ar-sight'),target=$('.ar-target'),pull=$('.ar-pull'),meter=$('.ar-meter'),timer=$('.ar-timer'),a11y=$('.ar-a11y'),curlBtn=$('.ar-curl'),replayEl=$('.ar-replay'),flight=$('.ar-flight');
   const CURL_TEXT={'0':'בעיטה ישרה','1':'עיקול ימינה ↷','-1':'עיקול שמאלה ↶'};
   let stage=null,disposed=false,flashT=0,roleT=0,debugT=0,lastInfo={},curlPref=0;const rng=makeRng((Math.random()*2**32)>>>0);
+  /* rain in the "rain" stadium: a thin layer of drops over the picture, drawn on a small canvas only while it rains */
+  let rainCv=null,rainRaf=0;
+  const rain=on=>{if(!on){cancelAnimationFrame(rainRaf);rainRaf=0;if(rainCv){rainCv.remove();rainCv=null}return}
+    if(rainCv||disposed)return;const cv=rainCv=document.createElement('canvas');cv.className='ar-rain';cv.setAttribute('aria-hidden','true');view.after(cv);const g=cv.getContext('2d');let w=1,h=1,drops=[],t0=performance.now();
+    const fit=()=>{w=cv.width=Math.max(1,Math.round(host.clientWidth/2));h=cv.height=Math.max(1,Math.round(host.clientHeight/2));drops=Array.from({length:Math.max(30,Math.round(w*h/2600))},()=>({x:Math.random()*(w+40),y:Math.random()*h,l:5+Math.random()*9,v:230+Math.random()*190,a:.16+Math.random()*.22}))};fit();
+    const loop=t=>{if(rainCv!==cv)return;const dt=Math.min(.05,(t-t0)/1000);t0=t;if(Math.abs(host.clientWidth/2-w)>2||Math.abs(host.clientHeight/2-h)>2)fit();g.clearRect(0,0,w,h);g.lineWidth=1;
+      for(const d of drops){d.y+=d.v*dt;d.x-=d.v*dt*.2;if(d.y>h+12||d.x<-12){d.y=-12-Math.random()*20;d.x=Math.random()*(w+40)}g.strokeStyle=`rgba(205,224,255,${d.a})`;g.beginPath();g.moveTo(d.x,d.y);g.lineTo(d.x+d.l*.2,d.y-d.l);g.stroke()}rainRaf=requestAnimationFrame(loop)};rainRaf=requestAnimationFrame(loop)};
   const stop=e=>e.preventDefault();host.addEventListener('contextmenu',stop);host.addEventListener('selectstart',stop);host.addEventListener('dragstart',stop);
   async function build(opts){loadEl.hidden=false;loadEl.textContent='טוען את האצטדיון…';
     if(stage){try{stage.dispose()}catch(e){}stage=null}
@@ -45,7 +52,7 @@ export function createArena(host,{debug=false,audio=null,force2d=false}={}){
 
   const api={broken:false,slow:false,get stage(){return stage},get kind(){return stage?.kind},
     /** (re)build the picture for a kick; resolves when the taker's film and the stadium are on the GPU */
-    async scene(opts){if(disposed)return false;if(!stage||api.broken){api.broken=false;return build(opts)}try{stage.reset(opts);return true}catch(e){return build(opts)}},
+    async scene(opts){if(disposed)return false;const L=look&&look();if(L)opts={...opts,skin:L.skin,mood:L.field&&L.field!=='auto'?L.field:opts.mood};rain(opts.mood==='rain');if(!stage||api.broken){api.broken=false;return build(opts)}try{stage.reset(opts);return true}catch(e){return build(opts)}},
     hint(text){hintEl.textContent=text||''},info(o){lastInfo={...lastInfo,...o}},
     /**
      * Say, unmistakably, which of the two I am for this kick. Both phones show the same picture (the taker from behind),
@@ -134,6 +141,6 @@ export function createArena(host,{debug=false,audio=null,force2d=false}={}){
       const skip=e=>{e.preventDefault();e.stopPropagation();end()};const t=setTimeout(end,9000);signal?.addEventListener('abort',end);host.addEventListener('pointerdown',skip,true);
       host.setAttribute('data-celebrating','1');try{stage.celebrate(end,{goal})}catch(e){console.error(e);end()}})},
     cheer(v){try{stage?.cheer(v)}catch(e){}},pause(){try{stage?.pause()}catch(e){}},resume(){try{stage?.resume()}catch(e){}},
-    dispose(){if(disposed)return;disposed=true;host.classList.remove('pressure','replaying','cine');clearTimeout(flashT);clearTimeout(roleT);host.classList.remove('i-kick','i-keep');clearInterval(debugT);try{api._cancel&&api._cancel()}catch(e){}host.removeEventListener('contextmenu',stop);host.removeEventListener('selectstart',stop);host.removeEventListener('dragstart',stop);
+    dispose(){if(disposed)return;rain(false);disposed=true;host.classList.remove('pressure','replaying','cine');clearTimeout(flashT);clearTimeout(roleT);host.classList.remove('i-kick','i-keep');clearInterval(debugT);try{api._cancel&&api._cancel()}catch(e){}host.removeEventListener('contextmenu',stop);host.removeEventListener('selectstart',stop);host.removeEventListener('dragstart',stop);
       try{stage?.dispose()}catch(e){}stage=null;host.innerHTML='';host.classList.remove('game-arena')}};
   return api}

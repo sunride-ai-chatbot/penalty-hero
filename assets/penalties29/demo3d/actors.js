@@ -77,12 +77,20 @@ export function posePlayer(actor,state,t){const {bones:b,names:n}=actor;for(cons
  if(state.dive>0){const d=state.dive;b[n.hips].rotation.z=d*1.25;b[n.hips].position.y=.9-.32*d;b[n.Larm].rotation.z=2.0*d;b[n.Rarm].rotation.z=1.4*d;b[n.Lfore].rotation.x=-.15;b[n.Rfore].rotation.x=-.15;b[n.Lthigh].rotation.x=-.28;b[n.Rthigh].rotation.x=.18;}}
  if(state.celebrate){const c=state.celebrate;b[n.Larm].rotation.z=2.3*c;b[n.Rarm].rotation.z=-2.3*c;b[n.Lfore].rotation.x=-.25;b[n.Rfore].rotation.x=-.25;b[n.hips].position.y+=Math.max(0,Math.sin(t*5))*.10*c;b[n.head].rotation.x=-.12*c;}
 }
-export function makeBall(scene){const canvas=document.createElement('canvas');canvas.width=512;canvas.height=256;const c=canvas.getContext('2d');c.fillStyle='#f4f3e8';c.fillRect(0,0,512,256);for(let row=0;row<4;row++)for(let col=0;col<8;col++){const x=col*64+(row%2)*32,y=row*64+32;c.beginPath();for(let n=0;n<5;n++){const a=n*Math.PI*2/5;c.lineTo(x+19*Math.cos(a),y+19*Math.sin(a))}c.closePath();c.fillStyle='#1a2633';c.fill();c.strokeStyle='#afb4ac';c.lineWidth=2;c.stroke()}const tex=new T.CanvasTexture(canvas);tex.colorSpace=T.SRGBColorSpace;const ball=new T.Mesh(new T.SphereGeometry(.145,20,14),new T.MeshStandardMaterial({map:tex,roughness:.65}));ball.castShadow=true;scene.add(ball);const mask=document.createElement('canvas');mask.width=mask.height=64;
+const CLASSIC={base:'#f4f3e8',patch:'#1a2633',line:'#afb4ac',rough:.65,metal:0,glow:0};
+/** the ball; skin(s) repaints it (colours of the panels, shine, a little glow) and is told only on a change */
+export function makeBall(scene){const canvas=document.createElement('canvas');canvas.width=512;canvas.height=256;const c=canvas.getContext('2d');const tex=new T.CanvasTexture(canvas);tex.colorSpace=T.SRGBColorSpace;
+ const mat=new T.MeshStandardMaterial({map:tex,roughness:.65});let worn='';
+ const paint=k=>{c.fillStyle=k.base;c.fillRect(0,0,512,256);for(let row=0;row<4;row++)for(let col=0;col<8;col++){const x=col*64+(row%2)*32,y=row*64+32;c.beginPath();for(let n=0;n<5;n++){const a=n*Math.PI*2/5;c.lineTo(x+19*Math.cos(a),y+19*Math.sin(a))}c.closePath();c.fillStyle=k.patch;c.fill();c.strokeStyle=k.line;c.lineWidth=2;c.stroke()}
+   tex.needsUpdate=true;mat.roughness=k.rough;mat.metalness=k.metal;const glow=k.glow>0;if(glow!==!!mat.emissiveMap){mat.emissiveMap=glow?tex:null;mat.needsUpdate=true}mat.emissive.set(glow?0xffffff:0x000000);mat.emissiveIntensity=k.glow};
+ paint(CLASSIC);
+ const skin=k=>{const o={...CLASSIC,...(k||{})},key=JSON.stringify(o);if(key===worn)return;worn=key;paint(o)};
+ const ball=new T.Mesh(new T.SphereGeometry(.145,20,14),mat);ball.castShadow=true;scene.add(ball);const mask=document.createElement('canvas');mask.width=mask.height=64;
  const brush=mask.getContext('2d'),fade=brush.createRadialGradient(32,32,0,32,32,32);
  fade.addColorStop(0,'rgba(12,18,13,1)');fade.addColorStop(.56,'rgba(12,18,13,.85)');fade.addColorStop(1,'rgba(12,18,13,0)');
  brush.fillStyle=fade;brush.fillRect(0,0,64,64);
  const shadow=new T.Mesh(new T.PlaneGeometry(.52,.42),new T.MeshBasicMaterial({map:new T.CanvasTexture(mask),transparent:true,depthWrite:false,toneMapped:false}));
- shadow.renderOrder=2;shadow.rotation.x=-Math.PI/2;scene.add(shadow);return {ball,shadow};}
+ shadow.renderOrder=2;shadow.rotation.x=-Math.PI/2;scene.add(shadow);return {ball,shadow,skin,look:()=>worn};}
 
 // Real roster identity and kit colours; bodies remain original generic characters.
 export function makeRosterPlayer(scene,p,index){

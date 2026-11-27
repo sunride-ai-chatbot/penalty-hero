@@ -248,10 +248,13 @@ export function buildWorld(scene,renderer){
  /* Not every night is the same night: the light, the air and the sky change with the stadium. The stand itself (a photograph and a film) is unlit and stays. */
  const MOODS={night:{bg:0x070c15,fog:[0x0a111c,95,240],hemi:[0x3a5a7a,0x101a14,.8],sun:[0xe9f1ff,1.8],fill:[0xc3d6f5,.6],warm:[0xffd6a2,.3],exposure:.95},
    dusk:{bg:0x1a1223,fog:[0x2b1d24,80,230],hemi:[0x8a6f6a,0x1a1812,.85],sun:[0xffd7a6,2.0],fill:[0xe0b4a0,.5],warm:[0xff9a62,.45],exposure:1.0},
-   mist:{bg:0x0e1620,fog:[0x1a2733,40,150],hemi:[0x58728a,0x142018,.9],sun:[0xd4e4f7,1.5],fill:[0xb5cde6,.7],warm:[0xffe0b8,.2],exposure:.92}};
- const setMood=name=>{const m=MOODS[name]||MOODS.night;scene.background=new T.Color(m.bg);scene.fog=new T.Fog(...m.fog);hemi.color.set(m.hemi[0]);hemi.groundColor.set(m.hemi[1]);hemi.intensity=m.hemi[2];
+   mist:{bg:0x0e1620,fog:[0x1a2733,40,150],hemi:[0x58728a,0x142018,.9],sun:[0xd4e4f7,1.5],fill:[0xb5cde6,.7],warm:[0xffe0b8,.2],exposure:.92},
+   golden:{bg:0x3b2410,fog:[0x6a4a2a,90,250],hemi:[0xd9a066,0x2a2012,1.0],sun:[0xffc27a,2.4],fill:[0xffe0b0,.55],warm:[0xffb060,.6],exposure:1.05},
+   rain:{bg:0x0a0f16,fog:[0x1b2631,28,120],hemi:[0x4a6076,0x0f1a14,.7],sun:[0xaec4dc,1.2],fill:[0x8fa8c4,.5],warm:[0xcfd8e6,.15],exposure:.86}};
+ let moodNow='night';
+ const setMood=name=>{const m=MOODS[name]||MOODS.night;moodNow=MOODS[name]?name:'night';scene.background=new T.Color(m.bg);scene.fog=new T.Fog(...m.fog);hemi.color.set(m.hemi[0]);hemi.groundColor.set(m.hemi[1]);hemi.intensity=m.hemi[2];
    sun.color.set(m.sun[0]);sun.intensity=m.sun[1];fill.color.set(m.fill[0]);fill.intensity=m.fill[1];warm.color.set(m.warm[0]);warm.intensity=m.warm[1];renderer.toneMappingExposure=m.exposure};
- return{sun,goals,crowdCount:people.length,crowd,crowdVideo,setMood,moods:Object.keys(MOODS)};
+ return{sun,goals,crowdCount:people.length,crowd,crowdVideo,setMood,get mood(){return moodNow},moods:Object.keys(MOODS)};
 }
 function makeGoal(scene,side){const g=new T.Group();g.position.x=side*52.5;g.scale.x=side;scene.add(g);const post=mat(0xf5f5e8,{roughness:.45});for(const z of [-3.66,3.66]){tube(g,[0,0,z],[0,2.44,z],.065,post);tube(g,[0,2.44,z],[2.1,1.9,z],.035,post);tube(g,[2.1,1.9,z],[2.1,0,z],.035,post)}tube(g,[0,2.44,-3.66],[0,2.44,3.66],.065,post);
  const pos=[];const push=(a,b)=>pos.push(...a,...b);for(let z=-3.66;z<=3.67;z+=.22){push([2.1,0,z],[2.1,1.9,z]);push([0,2.44,z],[2.1,1.9,z])}for(let y=0;y<=1.91;y+=.2)push([2.1,y,-3.66],[2.1,y,3.66]);for(const z of [-3.66,3.66]){for(let x=0;x<=2.11;x+=.21)push([x,0,z],[x,2.44-x*.257,z]);for(let y=0;y<=2.4;y+=.2)push([0,y,z],[2.1,Math.min(y,1.9),z])}for(let x=0;x<=2.11;x+=.21)push([x,2.44-x*.257,-3.66],[x,2.44-x*.257,3.66]);const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(pos,3));const net=new T.LineSegments(geo,new T.LineBasicMaterial({color:0xe2e9e4,transparent:true,opacity:.52}));g.add(net);const base=Float32Array.from(pos);return {net,base,group:g};}

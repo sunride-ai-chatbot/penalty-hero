@@ -5,13 +5,14 @@ import {loadCatalog,getCatalog,clubById,loadSquad,buildSide,similarOpponent,leag
 import {inkFor} from './crest.js';
 import {marksOf,scoreOf} from '../core/duel.js';
 import {RULES_VERSION,makeRng} from '../core/rules.js';
-import {parseStats,recordKick,recordDuel,recordSurvival,recordTournament,recordDaily,dayKey} from '../core/stats.js';
+import {parseStats,recordKick,recordDuel,recordSurvival,recordTournament,recordDaily,recordCup,dayKey} from '../core/stats.js';
 import {runSurvival,runDaily} from '../game/solo.js';
 import {createArena} from '../game/arena.js';
 import {runDuel} from '../game/match.js';
 import {createRoom,MSG} from '../net/protocol.js';
 import {loadTransport,newRoomCode,cleanCode} from '../net/transport.js';
 import {cupFeature} from './cup-ui.js';
+import {cabinetFeature} from './cabinet-ui.js';
 
 const ASSET=p=>new URL('../../assets/'+p,import.meta.url).href;
 const store={get(k,d=''){try{return localStorage.getItem('ph.'+k)??d}catch(e){return d}},set(k,v){try{localStorage.setItem('ph.'+k,v)}catch(e){}}};
@@ -47,10 +48,10 @@ export function startApp(root,{audio}){
         ${S.cupInvite?`<button type="submit" class="btn big" data-mode="cupjoin">הצטרף לליגת הנוקאאוט</button><button type="button" class="btn ghost" data-mode="cpu">מול המחשב</button>`:S.invite?`<button type="submit" class="btn big" data-mode="net">הצטרף לדו־קרב</button><button type="button" class="btn ghost" data-mode="cpu">מול המחשב</button>`
           :`<button type="submit" class="btn big" data-mode="cpu">מול המחשב</button><button type="button" class="btn big alt" data-mode="net">מול חבר ברשת</button>`}
 
-      </form><div class="more" role="group" aria-label="עוד מצבים"><button type="button" class="chip hot" data-mode="cup">ליגת נוקאאוט</button><button type="button" class="chip" data-mode="king">👑 מלך הפנדלים</button><button type="button" class="chip" data-mode="tour">גביע מול המחשב</button><button type="button" class="chip" data-mode="surv">הישרדות</button><button type="button" class="chip" data-mode="daily">אתגר יומי</button><button type="button" class="chip" data-mode="stats">הסטטיסטיקה שלי</button></div><footer class="intro-foot"><button type="button" class="icon mute" data-mute aria-label="השתקה" aria-pressed="${audio.muted}">${audio.muted?'🔇':'🔊'}</button><span>Penalty Hero · גרסה <bdi dir="ltr">${VERSION}</bdi></span></footer></div>`,
+      </form><div class="more" role="group" aria-label="עוד מצבים"><button type="button" class="chip hot" data-mode="cup">ליגת נוקאאוט</button><button type="button" class="chip" data-mode="king">👑 מלך הפנדלים</button><button type="button" class="chip" data-mode="tour">גביע מול המחשב</button><button type="button" class="chip" data-mode="surv">הישרדות</button><button type="button" class="chip" data-mode="daily">אתגר יומי</button><button type="button" class="chip" data-mode="cabinet">🏆 ארון גביעים</button><button type="button" class="chip" data-mode="stats">הסטטיסטיקה שלי</button></div><footer class="intro-foot"><button type="button" class="icon mute" data-mute aria-label="השתקה" aria-pressed="${audio.muted}">${audio.muted?'🔇':'🔊'}</button><span>Penalty Hero · גרסה <bdi dir="ltr">${VERSION}</bdi></span></footer></div>`,
     el=>{const v=el.querySelector('video'),play=()=>{const p=v.play();p&&p.catch&&p.catch(()=>{})};play();const vis=()=>{document.hidden?v.pause():play()};document.addEventListener('visibilitychange',vis);el.addEventListener('pointerdown',play,{passive:true});
       const input=el.querySelector('#playerName');input.addEventListener('input',()=>setName(input.value));
-      const choose=mode=>{setName(input.value);S.mode=mode;if(mode==='stats')return statsScreen();if(mode==='king')return cup.kingScreen(intro);if(mode==='cup')return cup.home();if(mode==='cupjoin')return cup.register(S.cupInvite);if(mode==='daily')return daily();pickMine()};
+      const choose=mode=>{setName(input.value);S.mode=mode;if(mode==='stats')return statsScreen();if(mode==='cabinet')return cab.screen();if(mode==='king')return cup.kingScreen(intro);if(mode==='cup')return cup.home();if(mode==='cupjoin')return cup.register(S.cupInvite);if(mode==='daily')return daily();pickMine()};
       el.querySelector('form').addEventListener('submit',e=>{e.preventDefault();choose(e.submitter?.dataset.mode||(S.invite?'net':'cpu'))});
       for(const b of el.querySelectorAll('button[data-mode][type=button]'))b.addEventListener('click',()=>choose(b.dataset.mode));
       return()=>{document.removeEventListener('visibilitychange',vis);v.pause();v.removeAttribute('src');v.load()}})}
@@ -139,7 +140,7 @@ export function startApp(root,{audio}){
       ${row('שיא הישרדות',st.survBest+' שערים')}${row('טורנירים: זכיות / ניסיונות',st.tourWins+' / '+st.tourPlayed)}
       ${row('אתגר יומי: רצף ימים / שיא',D.streak+' / '+D.best+' מתוך 5')}</div>
       <button type="button" class="link" id="reset">איפוס הסטטיסטיקה</button></main>`,el=>{el.querySelector('[data-back]').onclick=intro;
-      el.querySelector('#reset').onclick=()=>{const b=el.querySelector('#reset');if(b.dataset.sure){S.stats=parseStats(null);saveStats();statsScreen()}else{b.dataset.sure='1';b.textContent='ללחוץ שוב כדי למחוק הכול';}}})}
+      el.querySelector('#reset').onclick=()=>{const b=el.querySelector('#reset');if(b.dataset.sure){S.stats=parseStats(null);saveStats();cab.reset();statsScreen()}else{b.dataset.sure='1';b.textContent='ללחוץ שוב כדי למחוק הכול';}}})}
   /* a cup: quarter-final, semi-final, final. Win the shoot-out to go on, lose and you are out. */
   function drawOpponents(myId){const my=clubById(myId),all=Object.values(getCatalog().clubs).filter(c=>c.id!==myId),used=new Set();
     const pick=t=>{const c=all.filter(x=>!used.has(x.id)).sort((a,b)=>Math.abs(a.str-t)-Math.abs(b.str-t)).slice(0,4);const o=c[Math.floor(Math.random()*c.length)];used.add(o.id);return o.id};
@@ -191,7 +192,7 @@ export function startApp(root,{audio}){
     show('game',`<div class="hud"><div class="hud-side"><button type="button" class="icon" id="quit" aria-label="יציאה מהדו־קרב">✕</button><button type="button" class="icon mute" data-mute aria-label="השתקה" aria-pressed="${audio.muted}">${audio.muted?'🔇':'🔊'}</button></div><div class="hud-rows">${row(me)}${row(other)}</div></div>
       <div class="arena" id="arena"></div><div class="who" id="who" aria-live="polite"></div><div class="panel" id="panel" hidden></div>`,el=>{
       const release=keepAwake();const guard=e=>{if(net&&!over){e.preventDefault();e.returnValue=''}};window.addEventListener('beforeunload',guard);
-      arena=createArena(el.querySelector('#arena'),{debug,audio,force2d});if(debug)window.__ph={arena,sides,me,net};audio.bedOn();
+      arena=createArena(el.querySelector('#arena'),{debug,audio,force2d,look:()=>cab.look()});if(debug)window.__ph={arena,sides,me,net};audio.bedOn();
       preloadFaces([sides.a,sides.b]);
       const hud={turn({turn,taker,keeper,iKick,takerSide,keeperSide}){for(const r of el.querySelectorAll('.hud-row'))r.classList.toggle('on',r.dataset.side===turn.side);
           const kit=kitsFor(takerSide,keeperSide).kit;   /* the face waits in the club's colour with the shirt number until the photograph is in */
@@ -213,12 +214,12 @@ export function startApp(root,{audio}){
       const vis=()=>{if(document.hidden){arena.pause();audio.suspend()}else{arena.resume();audio.resume()}};document.addEventListener('visibilitychange',vis);
       const failed=message=>{if(over)return;stop();const p=el.querySelector('#panel');p.hidden=false;p.innerHTML=`<div class="end bad"><h2>המשחק הופסק</h2><p>${esc(message)}</p><button type="button" class="btn big" id="home">חזרה למסך הפנדלים</button></div>`;p.querySelector('#home').onclick=()=>{if(R)R.fail=null;exit()}};
       if(R)R.fail=failed;
-      (runner?runner({arena,audio,hud,signal:ac.signal}):runDuel({arena,audio,sides,me,first,net,hud,signal:ac.signal})).then(res=>{over=true;audio.bedOff();if(!runner){audio.finale();recordDuel(S.stats,{won:res.won});saveStats();if(res.won)audio.win();if(net)net.finish()}else saveStats();
-        if(custom){const v=custom.end(res),p=el.querySelector('#panel');p.hidden=false;if(v.good&&runner)audio.win();p.innerHTML=`<div class="end ${v.good?'good':'bad'}"><h2>${esc(v.title)}</h2>${v.lines.map(l=>`<p class="note">${l}</p>`).join('')}${v.buttons.map(([id,label,fn,cls,keep])=>`<button type="button" class="btn ${cls==='ghost'?'ghost':cls==='alt'?'big alt':'big'}" data-act="${id}">${esc(label)}</button>`).join('')}</div>`;
+      (runner?runner({arena,audio,hud,signal:ac.signal}):runDuel({arena,audio,sides,me,first,net,hud,signal:ac.signal})).then(res=>{over=true;audio.bedOff();if(!runner){audio.finale();recordDuel(S.stats,{won:res.won,conceded:res.score[other]});saveStats();if(res.won)audio.win();if(net)net.finish()}else saveStats();let news=[];if(!custom)news=cab.lines(cab.fresh());
+        if(custom){const v=custom.end(res),p=el.querySelector('#panel');news=cab.lines(cab.fresh());p.hidden=false;if(v.good&&runner)audio.win();p.innerHTML=`<div class="end ${v.good?'good':'bad'}"><h2>${esc(v.title)}</h2>${v.lines.map(l=>`<p class="note">${l}</p>`).join('')}${news.map(l=>`<p class="unlock">${l}</p>`).join('')}${v.buttons.map(([id,label,fn,cls,keep])=>`<button type="button" class="btn ${cls==='ghost'?'ghost':cls==='alt'?'big alt':'big'}" data-act="${id}">${esc(label)}</button>`).join('')}</div>`;
           for(const b of v.buttons)p.querySelector(`[data-act="${b[0]}"]`).onclick=()=>{b[4]?b[2]():(over=true,b[2]())};return}
         const p=el.querySelector('#panel');p.hidden=false;const paintEnd=(status='')=>{p.innerHTML=`<div class="end ${res.won?'good':'bad'}"><h2>${res.won?'ניצחת בדו־קרב!':'הפסדת בדו־קרב'}</h2>
             <p class="final"><bdi>${esc(sides[me].club.short||sides[me].club.name)}</bdi> <span dir="rtl"><b>${res.score[me]}</b> : <b>${res.score[other]}</b></span> <bdi>${esc(sides[other].club.short||sides[other].club.name)}</bdi></p>
-            ${status?`<p class="note" role="status">${esc(status)}</p>`:''}<button type="button" class="btn big" id="again">משחק חוזר</button><button type="button" class="btn big alt" id="swap">החלף קבוצה</button><button type="button" class="btn ghost" id="home">יציאה למסך הפנדלים</button></div>`;
+            ${news.map(l=>`<p class="unlock">${l}</p>`).join('')}${status?`<p class="note" role="status">${esc(status)}</p>`:''}<button type="button" class="btn big" id="again">משחק חוזר</button><button type="button" class="btn big alt" id="swap">החלף קבוצה</button><button type="button" class="btn ghost" id="home">יציאה למסך הפנדלים</button></div>`;
           p.querySelector('#home').onclick=()=>{if(R)R.fail=null;exit()};
           p.querySelector('#again').onclick=()=>{if(!net)return again();net.again();paintEnd(net.theirAgain?'מתחילים…':'ביקשת משחק חוזר. ממתין ליריב…');p.querySelector('#again').disabled=true};
           p.querySelector('#swap').onclick=()=>{if(!net){S.mode='cpu';return pickMine()}picker({title:'החלף קבוצה',note:'החדר נשאר פתוח',back:()=>back2(),done:id=>{S.my=id;store.set('club',id);back2(true)}})}};
@@ -229,7 +230,9 @@ export function startApp(root,{audio}){
         e=>{if(e&&e.name==='AbortError')return;console.error(e);failed(e&&e.message||'תקלה במשחק')});
       return()=>{over=true;ac.abort();release();window.removeEventListener('beforeunload',guard);document.removeEventListener('visibilitychange',vis);audio.stopAll();try{arena.dispose()}catch(e){}if(debug)window.__ph=null;if(R){R.ended=null}}})}
 
-  const cup=cupFeature({S,show,top,crestOf,toast,store,getCatalog,clubById,loadSquad,buildSide,cleanName,nameOrDefault,setName,intro,game,keepAwake,audio,RULES_VERSION,loadTransport,pickClub:picker});
+  const cab=cabinetFeature({S,show,top,store,intro,toast});
+  const cupDone=won=>{recordCup(S.stats,won);saveStats();const f=cab.lines(cab.fresh());if(f.length)toast(f.join(' · '),4800)};
+  const cup=cupFeature({cupDone,S,show,top,crestOf,toast,store,getCatalog,clubById,loadSquad,buildSide,cleanName,nameOrDefault,setName,intro,game,keepAwake,audio,RULES_VERSION,loadTransport,pickClub:picker});
   S.cupInvite=cup.parseInvite(params);
   /* ---------- start ---------- */
   show('boot',`<div class="boot"><img src="${ASSET('penalty-crest.webp')}" alt="" width="220" height="185"><p role="status">טוען…</p></div>`);

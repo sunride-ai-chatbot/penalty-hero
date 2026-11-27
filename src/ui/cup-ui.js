@@ -21,7 +21,7 @@ async function photoToAvatar(file){const url=URL.createObjectURL(file);try{const
 const pct=(g,k)=>k?Math.round(g/k*100)+'%':'—';
 
 export function cupFeature(C){
-  const {S,show,top,crestOf,toast,store,getCatalog,clubById,loadSquad,buildSide,cleanName,nameOrDefault,setName,intro,game,keepAwake,audio,RULES_VERSION,loadTransport,pickClub}=C;
+  const {cupDone,S,show,top,crestOf,toast,store,getCatalog,clubById,loadSquad,buildSide,cleanName,nameOrDefault,setName,intro,game,keepAwake,audio,RULES_VERSION,loadTransport,pickClub}=C;
   S.avatar=cleanAvatar(store.get('avatar',''));
   const X={net:null,room:null,R:null,matchKey:'',startT:0,waitT:0,done:false,submitted:false};
   if(new URLSearchParams(location.search).has('debug'))window.__cup=X;
@@ -153,7 +153,7 @@ export function cupFeature(C){
   /* ---------- the end: my row in the table, and the trophy ---------- */
   async function finish(show1=false){const n=X.net,cup=n?.cup;if(!cup)return;const c=champion(cup);if(!c)return;
     if(!X.submitted&&cup.players[S.pid]){X.submitted=true;const row=rowFor(cup,n.cupId,S.pid,n.avatarOf(S.pid)||S.avatar);const h=history();const st=standings(cup).find(r=>r.id===S.pid);
-      h.push({id:n.cupId,at:Date.now(),champion:c===S.pid,wins:st?.wins||0,goals:st?.goals||0,kicks:st?.kicks||0,players:Object.keys(cup.players).length});store.set('cups',JSON.stringify(h.slice(-30)));
+      h.push({id:n.cupId,at:Date.now(),champion:c===S.pid,wins:st?.wins||0,goals:st?.goals||0,kicks:st?.kicks||0,players:Object.keys(cup.players).length});store.set('cups',JSON.stringify(h.slice(-30)));try{cupDone&&cupDone(c===S.pid)}catch(e){console.error(e)}
       X.kingState=row?'fail':'small';if(row){const cfg=await kingCfg();if(cfg){const r=await kingApi(cfg).submit(row);X.kingState=r.ok?'ok':'fail';if(!r.ok)console.warn('king',r.status)}}store.set('cupActive','')}
     if(show1||(screen()!=='game'&&!X.shown))trophy()}
   const kingCfg=async()=>{try{const r=await fetch(new URL('../../config/network.json',import.meta.url),{cache:'no-store'});const c=await r.json();return c&&c.transport==='supabase'&&c.url&&c.key?{url:c.url,key:c.key}:null}catch(e){return null}};

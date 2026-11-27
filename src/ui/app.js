@@ -46,8 +46,9 @@ export function startApp(root,{audio,haptics=null}){
 
   /* ---------- 1–3: opening, name, mode ---------- */
   function intro(){S.mode=null;
-    show('intro',`<div class="intro-hero"><video class="intro-video" muted loop playsinline webkit-playsinline autoplay preload="auto" poster="${ASSET('cinematic-stadium.webp')}" src="${ASSET('penalty-intro.mp4')}"></video><div class="intro-shade"></div><img class="intro-logo" src="${ASSET('penalty-crest.webp')}" width="440" height="370" alt="Penalty Hero"><h1 class="sr">Penalty Hero</h1></div>
-      <div class="intro-body"><form class="card intro-card" autocomplete="off">${S.cupInvite?`<p class="invite">הוזמנת לליגת חברים · מתחילים ב־<bdi>${cup.hhmm(S.cupInvite.at)}</bdi></p>`:S.invite?`<p class="invite">הוזמנת לדו־קרב · חדר <bdi dir="ltr">${S.invite}</bdi></p>`:''}
+    show('intro',`<video class="intro-video" muted loop playsinline webkit-playsinline autoplay preload="auto" poster="${ASSET('cinematic-stadium.webp')}" src="${ASSET('penalty-intro.mp4')}"></video><div class="intro-shade"></div>
+      <div class="intro-body"><img class="intro-logo" src="${ASSET('penalty-crest.webp')}" width="440" height="370" alt="Penalty Hero"><h1 class="sr">Penalty Hero</h1>
+      <form class="card intro-card" autocomplete="off">${S.cupInvite?`<p class="invite">הוזמנת לליגת חברים · מתחילים ב־<bdi>${cup.hhmm(S.cupInvite.at)}</bdi></p>`:S.invite?`<p class="invite">הוזמנת לדו־קרב · חדר <bdi dir="ltr">${S.invite}</bdi></p>`:''}
         <label for="playerName">שם השחקן</label><input id="playerName" name="nickname" type="text" maxlength="24" placeholder="איך קוראים לך?" value="${esc(S.name)}" enterkeyhint="done" autocapitalize="words" spellcheck="false">
         ${S.cupInvite?`<button type="submit" class="btn big" data-mode="cupjoin">הצטרף לליגת החברים</button><button type="button" class="btn ghost" data-mode="cpu">מול המחשב</button>`:S.invite?`<button type="submit" class="btn big" data-mode="net">הצטרף לדו־קרב</button><button type="button" class="btn ghost" data-mode="cpu">מול המחשב</button>`
           :`<button type="submit" class="btn big" data-mode="cpu">מול המחשב</button><button type="button" class="btn big alt" data-mode="net">מול חבר ברשת</button>`}

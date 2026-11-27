@@ -1,6 +1,43 @@
 {
- "crowd-bed.opus":    {"source":"Soccer stadium (freesound_community)","page":"https://pixabay.com/sound-effects/","license":"Pixabay Content License","note":"0:08–0:48 of the original, loop with fades"},
- "crowd-chance.opus": {"source":"Soccer stadium (freesound_community)","page":"https://pixabay.com/sound-effects/","license":"Pixabay Content License","note":"1:06–1:10 of the original"},
- "crowd-goal.opus":   {"source":"Soccer stadium (freesound_community)","page":"https://pixabay.com/sound-effects/","license":"Pixabay Content License","note":"1:52–1:58 of the original"},
- "crowd-song.opus":   {"source":"Soccer stadium (freesound_community)","page":"https://pixabay.com/sound-effects/","license":"Pixabay Content License","note":"2:19–2:36 of the original"}
+ "crowd-bed.opus": {
+  "source": "Soccer stadium (freesound_community)",
+  "page": "https://pixabay.com/sound-effects/",
+  "license": "Pixabay Content License",
+  "note": "0:08–0:48 of the original, loop with fades"
+ },
+ "crowd-chance.opus": {
+  "source": "Soccer stadium (freesound_community)",
+  "page": "https://pixabay.com/sound-effects/",
+  "license": "Pixabay Content License",
+  "note": "1:06–1:10 of the original"
+ },
+ "crowd-goal.opus": {
+  "source": "Soccer stadium (freesound_community)",
+  "page": "https://pixabay.com/sound-effects/",
+  "license": "Pixabay Content License",
+  "note": "1:52–1:58 of the original"
+ },
+ "crowd-song.opus": {
+  "source": "Soccer stadium (freesound_community)",
+  "page": "https://pixabay.com/sound-effects/",
+  "license": "Pixabay Content License",
+  "note": "2:19–2:36 of the original"
+ },
+ "crowd-call1.opus": {
+  "source": "Football commentator with FX: 'What an amazing shot' (JonathanSlatterMusic)",
+  "page": "https://pixabay.com/sound-effects/",
+  "license": "Pixabay Content License",
+  "note": "trimmed, normalised to about -19 LUFS, 0.35 s fade-out"
+ },
+ "crowd-call2.opus": {
+  "source": "Football commentator with FX: 'That is nothing but incredible' (JonathanSlatterMusic)",
+  "page": "https://pixabay.com/sound-effects/",
+  "license": "Pixabay Content License",
+  "note": "trimmed, normalised to about -19 LUFS, 0.35 s fade-out"
+ },
+ "sfx-*.opus": {
+  "source": "scripts/make-sfx.py",
+  "license": "generated in code, no third-party material",
+  "note": "boot on ball, net, post, gloves, one short whistle"
+ }
 }

@@ -9,9 +9,14 @@ function fakeCtx(missing=[]){const log=[];class Node{connect(n){return n}disconn
   return {log,fetched}}
 const {createAudio}=await import('../src/audio/audio.js');
 test('the match sounds come from their own files, through a compressor, and the crowd ducks for them',async()=>{const f=fakeCtx();const a=createAudio({base:'http://x/assets/audio/',storage:null});a.unlock();await new Promise(r=>setTimeout(r,30));
-  assert.ok(['sfx-whistle','sfx-whistle-final','sfx-kick','sfx-net','sfx-post','sfx-glove','crowd-bed','crowd-goal'].every(n=>f.fetched.some(x=>x.startsWith(n+'.'))));assert.ok(f.log.some(l=>l[0]==='compressor'));
-  a.whistle();a.kick(90);a.goal(true);a.post();a.save(true);const started=f.log.filter(l=>l[0]==='start').map(l=>l[1]);
-  for(const n of ['sfx-whistle','sfx-kick','sfx-net','sfx-post','sfx-glove','crowd-goal','crowd-chance'])assert.ok(started.includes(n),n);assert.ok(!f.log.some(l=>l[0]==='osc'),'no stand-in beeps when the files are there');
+  assert.ok(['sfx-whistle','crowd-call1','crowd-call2','sfx-kick','sfx-net','sfx-post','sfx-glove','crowd-bed','crowd-goal'].every(n=>f.fetched.some(x=>x.startsWith(n+'.'))));assert.ok(f.log.some(l=>l[0]==='compressor'));
+  a.whistle();a.kick(90);a.goal(true);a.goal(true);a.post();a.save(true);const started=f.log.filter(l=>l[0]==='start').map(l=>l[1]);
+  for(const n of ['sfx-whistle','sfx-kick','sfx-net','sfx-post','sfx-glove','crowd-call1','crowd-call2','crowd-chance'])assert.ok(started.includes(n),n);assert.ok(!f.log.some(l=>l[0]==='osc'),'no stand-in beeps when the files are there');
   const k=f.log.filter(l=>l[1]==='sfx-kick');a.kick(30);a.kick(100);const rates=f.log.filter(l=>l[1]==='sfx-kick').slice(-2).map(l=>l[2]);assert.ok(rates[1]>rates[0],'a harder kick is higher and louder')});
 test('a missing file falls back to a plain stand-in once loading is over, and is silent before',async()=>{const f=fakeCtx(['sfx-kick','sfx-whistle']);const a=createAudio({base:'http://x/',storage:null});a.unlock();a.kick(80);assert.ok(!f.log.some(l=>l[0]==='osc'));
-  await new Promise(r=>setTimeout(r,30));a.kick(80);a.whistle();assert.ok(f.log.filter(l=>l[0]==='osc').length>=3)});
+  await new Promise(r=>setTimeout(r,30));a.kick(80);a.whistle();assert.ok(f.log.filter(l=>l[0]==='osc').length>=2)});
+
+test('the commentator never repeats a call twice in a row, always speaks on the first goal, and the crowd burst plays when he does not',async()=>{const f=fakeCtx();const a=createAudio({base:'http://x/',storage:null});a.unlock();await new Promise(r=>setTimeout(r,30));a.bedOn();
+  const seq=[];const orig=Math.random;try{Math.random=()=>0.99;f.log.length=0;a.goal(true);seq.push(...f.log.filter(l=>l[0]==='start'&&/call/.test(l[1])).map(l=>l[1]));
+    a.goal(true);const second=f.log.filter(l=>l[0]==='start'&&/call/.test(l[1])).length;assert.equal(second,1,'the second goal (random 0.99) has no call');assert.ok(f.log.some(l=>l[1]==='crowd-goal'),'the crowd roars instead');
+    Math.random=()=>0.1;f.log.length=0;a.goal(true);a.goal(true);const calls=f.log.filter(l=>l[0]==='start'&&/call/.test(l[1])).map(l=>l[1]);assert.equal(calls.length,2);assert.notEqual(calls[0],calls[1]);assert.notEqual(calls[0],seq[0])}finally{Math.random=orig}});

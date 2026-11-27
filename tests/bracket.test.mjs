@@ -28,3 +28,9 @@ test('shoot-outs by dice: never a draw, the stronger side wins more, a sure resu
   const [a,b]=shootout(1,()=>0.99);assert.notEqual(a,b);assert.ok(winChance(60,60)===.5&&winChance(70,60)>.7&&winChance(50,70)<.15)});
 test('over many cups the favourite does not always take it (the cup is open), and the draw is fair to the player: he is in every slot sometimes',()=>{const slots=new Set(),champs=new Map();for(let i=0;i<200;i++){const T=cup('many'+i);slots.add(T.meIdx);settleRound(T,0,{won:false,mine:0,theirs:1});champs.set(T.champion,(champs.get(T.champion)||0)+1)}
   assert.equal(slots.size,16);assert.ok(champs.size>=8,'different champions: '+champs.size)});
+test('the draw is not the same every time: with many clubs of equal strength, the first opponent varies widely and no club keeps coming up',()=>{
+  const big=Array.from({length:300},(_,i)=>({id:'k'+i,str:40+Math.floor(i/6)}));const me={id:'k150',str:68};const first={},all={};const N=300;
+  for(let i=0;i<N;i++){const T=drawCup({my:me,pool:big,seed:'v'+i});const o=T.slots[T.meIdx^1];first[o]=(first[o]||0)+1;for(const id of T.slots)all[id]=(all[id]||0)+1;
+    assert.ok(T.str[o]>=me.str-11&&T.str[o]<=me.str-1,'the first opponent stays a little weaker: '+T.str[o])}
+  assert.ok(Object.keys(first).length>=20,'distinct first opponents: '+Object.keys(first).length);assert.ok(Math.max(...Object.values(first))<=N*.12,'one club too often: '+Math.max(...Object.values(first)));
+  assert.ok(Object.keys(all).length>=120,'the rest of the field varies too: '+Object.keys(all).length)});

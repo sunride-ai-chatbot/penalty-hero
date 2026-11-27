@@ -12,7 +12,9 @@ const shuffle=(a,rng)=>{for(let i=a.length-1;i>0;i--){const j=Math.floor(rng()*(
 /** Draw the cup. my:{id,str}, pool:[{id,str}] (every club that could play). The first opponent is a little weaker than the player;
  *  the others spread from clearly weaker to clearly stronger, so the later rounds get harder as the stronger clubs win through. */
 export function drawCup({my,pool,seed=String(Math.random())}){const rng=makeRng('draw:'+seed),others=pool.filter(c=>c.id!==my.id),used=new Set();
-  const pick=t=>{const c=others.filter(x=>!used.has(x.id)).sort((a,b)=>Math.abs(a.str-t)-Math.abs(b.str-t)).slice(0,4);const o=c[Math.floor(rng()*c.length)];used.add(o.id);return o.id};
+  // a club near the wanted strength (which itself wobbles by a few points), picked at random from the nearest dozen; ties in strength are
+  // shuffled first, so the same four clubs do not come up every time for a given club
+  const pick=(t,wide=12,jitter=5)=>{t+=(rng()-.5)*jitter;const c=shuffle(others.filter(x=>!used.has(x.id)),rng).sort((a,b)=>Math.abs(a.str-t)-Math.abs(b.str-t)).slice(0,wide);const o=c[Math.floor(rng()*c.length)];used.add(o.id);return o.id};
   if(others.length<SIZE-1)throw new Error('not enough clubs for a cup');
   const first=pick(my.str-6),rest=shuffle(Array.from({length:SIZE-2},(_,i)=>pick(my.str-12+i*1.7)),rng);
   const meIdx=Math.floor(rng()*SIZE),slots=new Array(SIZE).fill(null);slots[meIdx]=my.id;slots[meIdx^1]=first;let k=0;for(let i=0;i<SIZE;i++)if(slots[i]===null)slots[i]=rest[k++];

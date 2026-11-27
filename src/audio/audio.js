@@ -32,8 +32,8 @@ export function createAudio({base,storage=globalThis.localStorage,haptics=null}=
     lastSaid=name;speakUntil=ctx.currentTime+delay+b.duration;api.duck(.3,delay+b.duration,1.6);return true}
   const api={get muted(){return muted},get ready(){return !!ctx&&ctx.state==='running'},get playing(){return live.size},
     /** call from a tap: opens the context (iOS needs the gesture) and starts loading the recordings */
-    unlock(){if(!ensure())return;if(ctx.state==='suspended')ctx.resume().catch(()=>{});if(!unlocked){unlocked=true;load().then(()=>{if(api.wantBed&&!bed)api.bedOn()})}},
-    setMuted(v){muted=!!v;try{storage?.setItem('ph.muted',muted?'1':'0')}catch(e){}if(master&&ctx)master.gain.setTargetAtTime(muted?0:LEVEL*opts.vol,ctx.currentTime,.03)},
+    unlock(){if(!ensure())return;if(ctx.state!=='running'&&ctx.state!=='closed')ctx.resume().catch(()=>{});if(!unlocked){unlocked=true;load().then(()=>{if(api.wantBed&&!bed)api.bedOn()})}},
+    setMuted(v){muted=!!v;if(!muted)api.unlock();try{storage?.setItem('ph.muted',muted?'1':'0')}catch(e){}if(master&&ctx)master.gain.setTargetAtTime(muted?0:LEVEL*opts.vol,ctx.currentTime,.03)},
     /** from the settings: which of the three voices of the game are on (commentator, effects, crowd) and how loud everything is */
     configure(o={}){for(const k of ['voice','sfx','crowd'])if(typeof o[k]==='boolean')opts[k]=o[k];if(typeof o.vol==='number'&&o.vol>0)opts.vol=o.vol;haptics?.configure?.(o);
       if(master&&ctx)master.gain.setTargetAtTime(muted?0:LEVEL*opts.vol,ctx.currentTime,.03);if(!opts.crowd){if(bed){stopNode(bed,.4);bed=null}}else if(api.wantBed&&!bed&&ctx&&buffers.bed)bed=play('bed',{gain:BED,loop:true,fade:1.6})},
@@ -68,5 +68,5 @@ export function createAudio({base,storage=globalThis.localStorage,haptics=null}=
     tap(){tone(660,.04,{gain:.05})},
     /** everything off: the duel was left */
     stopAll(){api.wantBed=false;bed=null;for(const n of [...live])stopNode(n,.2)},
-    suspend(){if(ctx&&ctx.state==='running')ctx.suspend().catch(()=>{})},resume(){if(ctx&&unlocked&&ctx.state==='suspended')ctx.resume().catch(()=>{})}};
+    suspend(){if(ctx&&ctx.state==='running')ctx.suspend().catch(()=>{})},resume(){if(ctx&&unlocked&&ctx.state!=='running'&&ctx.state!=='closed')ctx.resume().catch(()=>{})}};
   return api}

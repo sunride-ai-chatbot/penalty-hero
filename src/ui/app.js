@@ -41,6 +41,8 @@ export function startApp(root,{audio,haptics=null}){
   const top=(title,back,sub='')=>`<header class="top">${back?`<button type="button" class="icon back" data-back aria-label="חזרה">›</button>`:'<span></span>'}<div><h1>${esc(title)}</h1>${sub?`<p>${sub}</p>`:''}</div><button type="button" class="icon mute" data-mute aria-label="השתקה" aria-pressed="${audio.muted}">${audio.muted?'🔇':'🔊'}</button></header>`;
   root.addEventListener('click',e=>{const m=e.target.closest('[data-mute]');if(m){audio.unlock();audio.setMuted(!audio.muted);for(const b of root.querySelectorAll('[data-mute]')){b.textContent=audio.muted?'🔇':'🔊';b.setAttribute('aria-pressed',audio.muted)}}});
   root.addEventListener('pointerdown',()=>audio.unlock(),{passive:true});
+  root.addEventListener('pointerup',()=>audio.unlock(),{passive:true});
+  root.addEventListener('click',()=>audio.unlock(),{capture:true});
   const crestOf=club=>`<span class="crest-box">${clubCrest(club)}</span>`;
   const toast=(text,ms=2600)=>{const t=document.createElement('div');t.className='toast';t.textContent=text;document.body.append(t);setTimeout(()=>t.remove(),ms)};
 

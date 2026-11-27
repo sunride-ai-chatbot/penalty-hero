@@ -91,7 +91,7 @@ export function createArena(host,{debug=false,audio=null,force2d=false,look=null
         const cur=()=>{const s=swayAt(ck.ms/1000,amp);return {x:aim.x+s.dx,y:Math.max(.05,aim.y+s.dy)}};
         const pos=()=>heldAt===null?null:meterPosition(performance.now()-heldAt,win.speed);
         const fire=auto=>{let c=cur(),m=pos(),curl=auto?0:bowOf();if(auto&&!touched){const k=aiKick(shotSkill,rng);c=k.aim;m=k.meter;curl=k.curl||0}else if(m===null)m=aiKick(shotSkill,rng).meter;
-          finish({aim:{x:+c.x.toFixed(2),y:+c.y.toFixed(2)},meter:+m.toFixed(3),curl,auto:!!auto})};
+          audio?.buzz?.('kick');finish({aim:{x:+c.x.toFixed(2),y:+c.y.toFixed(2)},meter:+m.toFixed(3),curl,auto:!!auto})};
         const setAim=e=>{path.push({x:e.clientX,y:e.clientY});const r=host.getBoundingClientRect();const [x,y]=stage.fromScreen(e.clientX-r.left,e.clientY-r.top-(e.pointerType==='touch'?TOUCH_LIFT:0));aim={x:clamp(x,-4.6,4.6),y:clamp(y,.12,3.2)};touched=true};
         on(host,'pointerdown',e=>{if(pointer!==null||e.button>0||e.target.closest('button'))return;e.preventDefault();pointer=e.pointerId;heldAt=performance.now();try{host.setPointerCapture(e.pointerId)}catch(x){}setAim(e);audio?.unlock()});
         on(host,'pointermove',e=>{if(e.pointerId===pointer){e.preventDefault();setAim(e);paintCurl()}});
@@ -118,7 +118,7 @@ export function createArena(host,{debug=false,audio=null,force2d=false,look=null
         const point=e=>{const r=host.getBoundingClientRect();const [x,y]=stage.fromScreen(e.clientX-r.left,e.clientY-r.top-(e.pointerType==='touch'?TOUCH_LIFT:0));set(x,y)};
         on(host,'pointerdown',e=>{if(pointer!==null||e.button>0||e.target.closest('button'))return;e.preventDefault();pointer=e.pointerId;try{host.setPointerCapture(e.pointerId)}catch(x){}point(e);audio?.unlock()});
         on(host,'pointermove',e=>{if(e.pointerId!==pointer)return;e.preventDefault();point(e)});
-        on(host,'pointerup',e=>{if(e.pointerId!==pointer)return;e.preventDefault();pointer=null;point(e);finish({d:pointOfDive(aim),auto:false})});   // released: committed
+        on(host,'pointerup',e=>{if(e.pointerId!==pointer)return;e.preventDefault();pointer=null;point(e);audio?.buzz?.('tap');finish({d:pointOfDive(aim),auto:false})});   // released: committed
         on(host,'pointercancel',e=>{if(e.pointerId===pointer)pointer=null});                                                        // the system took the touch: nothing is chosen
         on(host,'keydown',e=>{const a=aim||{x:0,y:1.2};if(e.key==='ArrowLeft')set(a.x-2.6,a.y);else if(e.key==='ArrowRight')set(a.x+2.6,a.y);else if(e.key==='ArrowUp')set(a.x,a.y+.75);else if(e.key==='ArrowDown')set(a.x,a.y-.75);
           else if((e.key==='Enter'||e.key===' ')&&!e.repeat){e.preventDefault();return finish({d:pointOfDive(aim||{x:0,y:1.2}),auto:false})}else return;e.preventDefault()});

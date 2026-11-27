@@ -250,3 +250,6 @@ input[type=text]:focus{outline:2px solid var(--go);outline-offset:1px;border-col
 .intro-body .chip::after{font-size:8px;letter-spacing:.3px;color:#d6cdbf;line-height:1.1}
 .intro-body .chip[data-mode=cup]::after{content:"FRIENDS LEAGUE"}.intro-body .chip[data-mode=tour]::after{content:"KNOCKOUT"}.intro-body .chip[data-mode=prac]::after{content:"PRACTICE"}.intro-body .chip[data-mode=daily]::after{content:"DAILY CHALLENGE"}.intro-body .chip[data-mode=cabinet]::after{content:"TROPHY ROOM"}.intro-body .chip[data-mode=stats]::after{content:"MY STATS"}.intro-body .chip[data-mode=surv]::after{content:"SURVIVAL"}.intro-body .chip[data-mode=king]::after{content:"PENALTY KING"}
 .intro-body .chip[data-mode=king]{grid-column:span 2;background:linear-gradient(115deg,#310a12,#8c172a,#220910);border-color:#eac98a}.intro-foot{flex:none}
+
+/* Smaller opening crest, without moving the controls or changing the video. */
+#app[data-screen=intro] .intro-logo{width:min(29vw,130px,14.5dvh);margin-top:-6px;margin-bottom:calc(clamp(65px,12dvh,140px) + min(24.4vw,109px,12.2dvh) + 6px)}

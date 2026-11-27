@@ -56,7 +56,7 @@ export function startApp(root,{audio,haptics=null}){
       </form><div class="more" role="group" aria-label="עוד מצבים"><button type="button" class="chip hot" data-mode="cup">ליגת חברים</button><button type="button" class="chip" data-mode="king">👑 מלך הפנדלים</button><button type="button" class="chip" data-mode="tour">טורניר נוקאאוט</button><button type="button" class="chip" data-mode="surv">הישרדות</button><button type="button" class="chip" data-mode="daily">אתגר יומי</button><button type="button" class="chip" data-mode="prac">🎯 תרגול</button><button type="button" class="chip" data-mode="cabinet">🏆 ארון גביעים</button><button type="button" class="chip" data-mode="stats">הסטטיסטיקה שלי</button></div><footer class="intro-foot"><button type="button" class="icon mute" data-mute aria-label="השתקה" aria-pressed="${audio.muted}">${audio.muted?'🔇':'🔊'}</button><button type="button" class="icon" data-mode="settings" aria-label="הגדרות">⚙️</button><span>Penalty Hero · גרסה <bdi dir="ltr">${VERSION}</bdi></span></footer></div>`,
     el=>{const v=el.querySelector('video'),play=()=>{const p=v.play();p&&p.catch&&p.catch(()=>{})};play();const vis=()=>{document.hidden?v.pause():play()};document.addEventListener('visibilitychange',vis);el.addEventListener('pointerdown',play,{passive:true});
       const input=el.querySelector('#playerName');input.addEventListener('input',()=>setName(input.value));
-      const choose=mode=>{setName(input.value);S.mode=mode;if(mode==='stats')return statsScreen();if(mode==='cabinet')return cab.screen();if(mode==='settings')return settings.screen();if(mode==='king')return cup.kingScreen(intro);if(mode==='cup')return cup.home();if(mode==='cupjoin')return cup.register(S.cupInvite);if(mode==='daily')return daily();pickMine()};
+      const choose=mode=>{setName(input.value);if((mode==='cup'||mode==='cupjoin')&&!S.name){toast('כתוב את שמך כדי להצטרף לליגה');input.focus();return}S.mode=mode;if(mode==='stats')return statsScreen();if(mode==='cabinet')return cab.screen();if(mode==='settings')return settings.screen();if(mode==='king')return cup.kingScreen(intro);if(mode==='cup')return cup.home();if(mode==='cupjoin')return cup.register(S.cupInvite);if(mode==='daily')return daily();pickMine()};
       el.querySelector('form').addEventListener('submit',e=>{e.preventDefault();choose(e.submitter?.dataset.mode||(S.invite?'net':'cpu'))});
       for(const b of el.querySelectorAll('button[data-mode][type=button]'))b.addEventListener('click',()=>choose(b.dataset.mode));
       return()=>{document.removeEventListener('visibilitychange',vis);v.pause();v.removeAttribute('src');v.load()}})}
@@ -74,7 +74,7 @@ export function startApp(root,{audio,haptics=null}){
           if(b.dataset.country){P.country=b.dataset.country;const c=cat.countries.find(x=>x.id===P.country);P.league=c.leagues.length===1?c.leagues[0].id:null;paint()}
           else if(b.dataset.league){P.league=b.dataset.league;paint()}else if(b.dataset.club)done(b.dataset.club)})})};
     paint()}
-  function pickMine(){picker({title:'הקבוצה שלך',note:esc(nameOrDefault())+(S.mode==='net'?' · כל צד בוחר קבוצה משלו':''),back:intro,done:id=>{S.my=id;store.set('club',id);S.mode==='net'?lobby():S.mode==='tour'?tournament():S.mode==='surv'?survival():S.mode==='prac'?practice():opponent()}})}
+  function pickMine(){picker({title:'הקבוצה שלך',note:S.mode==='net'?'כל צד בוחר קבוצה משלו':'',back:intro,done:id=>{S.my=id;store.set('club',id);S.mode==='net'?lobby():S.mode==='tour'?tournament():S.mode==='surv'?survival():S.mode==='prac'?practice():opponent()}})}
 
   /* ---------- 5: the opponent (computer) ---------- */
   function opponent(){const my=clubById(S.my);if(!my)return pickMine();
@@ -90,10 +90,10 @@ export function startApp(root,{audio,haptics=null}){
     if(screen!=='before')return;const A=buildSide(my,sa),B=buildSide(op,sb,{twin:op.id===my.id});
     const five=side=>`<ol class="five">${side.order.slice(0,5).map(p=>`<li><bdi class="no">${p.no}</bdi><span>${esc(p.he)}</span><bdi class="sk">${p.shot}</bdi></li>`).join('')}</ol><p class="gk">בשער: ${esc(side.keeper.he)} <bdi class="sk">${side.keeper.keep}</bdi></p>`;
     show('before',top('לפני הדו־קרב',true)+`<main class="body"><div class="versus"><div>${crestOf(my)}<strong>${esc(my.name)}</strong>${five(A)}</div><b class="vs">נגד</b><div>${crestOf(op)}<strong>${esc(op.name)}</strong>${five(B)}</div></div>
-      <div class="card"><label for="playerName2">שם השחקן</label><input id="playerName2" type="text" maxlength="24" placeholder="איך קוראים לך?" value="${esc(S.name)}" enterkeyhint="done" spellcheck="false">
+      <div class="card">
       <button type="button" class="btn big" id="go">לנקודה הלבנה</button><p class="note">חמש בעיטות לכל צד. כשאתה בועט: החזק, כוון ושחרר באזור הלבן. כשהם בועטים: אתה בשער.</p></div></main>`,el=>{
-      el.querySelector('[data-back]').onclick=opponent;const input=el.querySelector('#playerName2');input.addEventListener('input',()=>setName(input.value));
-      el.querySelector('#go').onclick=()=>{setName(input.value);A.participant=nameOrDefault();B.participant='המחשב';game({sides:{a:A,b:B},me:'a',first:Math.random()<.5?'a':'b',again:before,exit:intro})}})}
+      el.querySelector('[data-back]').onclick=opponent;
+      el.querySelector('#go').onclick=()=>{A.participant=nameOrDefault();B.participant='המחשב';game({sides:{a:A,b:B},me:'a',first:Math.random()<.5?'a':'b',again:before,exit:intro})}})}
   function retry(text,again,back){show('error',top('תקלה',true)+`<main class="body center"><p class="err">${esc(text)}</p><button type="button" class="btn big" id="again">נסה שוב</button></main>`,el=>{el.querySelector('[data-back]').onclick=back;el.querySelector('#again').onclick=again})}
 
   /* ---------- 7: the room ---------- */
@@ -103,11 +103,11 @@ export function startApp(root,{audio,haptics=null}){
     show('lobby',top('מול חבר ברשת',true)+`<main class="body center"><div class="vs-one">${crestOf(my)}<strong>${esc(my.name)}</strong><button type="button" class="link" id="swap">החלף קבוצה</button></div>
       ${error?`<p class="err">${esc(error)}</p>`:''}
       ${off?`<p class="err">משחק ברשת לא מוגדר בגרסה הזו.</p><p class="note">כדי להפעיל אותו צריך להגדיר שירות רשת בקובץ <bdi dir="ltr">config/network.json</bdi>. אין כאן יריב מדומה: בלי שירות אין חדר ואין קישור.</p><button type="button" class="btn big" id="cpu">שחק מול המחשב</button>`
-      :`<div class="card"><label for="playerName3">שם השחקן</label><input id="playerName3" type="text" maxlength="24" placeholder="איך קוראים לך?" value="${esc(S.name)}" enterkeyhint="done" spellcheck="false">
+      :`<div class="card">
         ${S.invite?`<button type="button" class="btn big" id="join">הצטרף לחדר <bdi dir="ltr">${S.invite}</bdi></button><button type="button" class="link" id="forget">לא החדר הזה? פתח חדר חדש</button>`
         :`<button type="button" class="btn big" id="open">פתח חדר והזמן חבר</button><div class="or">או</div><label for="code">קוד חדר</label><input id="code" type="text" inputmode="latin" maxlength="6" dir="ltr" autocapitalize="characters" placeholder="ABC234" autocomplete="off" spellcheck="false"><button type="button" class="btn big alt" id="joinCode">הצטרף</button>`}</div>`}</main>`,el=>{
       el.querySelector('[data-back]').onclick=pickMine;el.querySelector('#swap').onclick=pickMine;if(off){el.querySelector('#cpu').onclick=()=>{S.mode='cpu';opponent()};return}
-      const input=el.querySelector('#playerName3');input.addEventListener('input',()=>setName(input.value));const go=(host,code)=>{setName(input.value);room(host,code)};
+      const go=(host,code)=>room(host,code);
       el.querySelector('#open')?.addEventListener('click',()=>go(true,newRoomCode()));el.querySelector('#join')?.addEventListener('click',()=>go(false,S.invite));
       el.querySelector('#forget')?.addEventListener('click',()=>{setInvite('');lobby()});
       const code=el.querySelector('#code');code?.addEventListener('input',()=>{code.value=cleanCode(code.value)});
@@ -157,11 +157,11 @@ export function startApp(root,{audio,haptics=null}){
     show('cup',top('טורניר נוקאאוט',true,over?(won?'אלופים!':'הטורניר הסתיים'):roundName(rd))+`<main class="body center">${tree}
       ${over?`<p class="tree-next">${won?'זכית בגביע! 🏆':`האלופה: <strong>${esc(champion||'')}</strong>`}</p><button type="button" class="btn big" id="new">טורניר חדש</button><button type="button" class="btn ghost" id="home">יציאה</button>`
         :`<p class="tree-next">${known?`היריבה: <strong>${esc(op.name)}</strong> <bdi>${op.str}</bdi>`:'כל המשחקים של שמינית הגמר יוגרלו עכשיו'}</p>
-          <div class="card"><label for="playerName4">שם השחקן</label><input id="playerName4" type="text" maxlength="24" value="${esc(S.name)}" enterkeyhint="done" spellcheck="false"><button type="button" class="btn big" id="go">${known?'לנקודה הלבנה':'הגרל את המשחקים'}</button><p class="note">מנצחים בדו־קרב מעפילים לשלב הבא. מפסידים: הטורניר נגמר. אחרי כל דו־קרב נחשפות התוצאות של שאר המשחקים והעמודה הבאה בעץ.</p></div>`}
+          <div class="card"><button type="button" class="btn big" id="go">${known?'לנקודה הלבנה':'הגרל את המשחקים'}</button><p class="note">מנצחים בדו־קרב מעפילים לשלב הבא. מפסידים: הטורניר נגמר. אחרי כל דו־קרב נחשפות התוצאות של שאר המשחקים והעמודה הבאה בעץ.</p></div>`}
       ${results?`<div class="card rounds">${results}</div>`:''}</main>`,el=>{
       el.querySelector('[data-back]').onclick=intro;if(over){el.querySelector('#new').onclick=()=>tournament();el.querySelector('#home').onclick=intro;return}
-      const input=el.querySelector('#playerName4');input.addEventListener('input',()=>setName(input.value));
-      el.querySelector('#go').onclick=async()=>{setName(input.value);if(!known){T.peek=true;return tournament(T)}
+      
+      el.querySelector('#go').onclick=async()=>{if(!known){T.peek=true;return tournament(T)}
         const b=el.querySelector('#go');b.disabled=true;b.textContent='טוען…';let sa,sb;
         try{[sa,sb]=await Promise.all([loadSquad(my.id),loadSquad(op.id)])}catch(e){b.disabled=false;b.textContent='לנקודה הלבנה';return toast('לא הצלחנו לטעון את הסגלים. בדקו את החיבור.')}if(screen!=='cup')return;
         const A=buildSide(my,sa,{participant:nameOrDefault()}),B=buildSide(op,sb,{twin:op.id===my.id,participant:'המחשב'});
@@ -175,9 +175,9 @@ export function startApp(root,{audio,haptics=null}){
   async function survival(){const my=clubById(S.my);if(!my)return pickMine();S.mode='surv';
     show('surv',top('הישרדות',true)+`<main class="body center"><div class="vs-one">${crestOf(my)}<strong>${esc(my.name)}</strong></div>
       <div class="card"><p class="big">השיא שלך: <b>${S.stats.survBest}</b> שערים</p><p class="note">בועטים ברצף. החמצה אחת וזה נגמר. אחרי כל שער השוער משתפר, ומהשער השישי הסמן מהיר יותר.</p>
-      <label for="playerName5">שם השחקן</label><input id="playerName5" type="text" maxlength="24" value="${esc(S.name)}" enterkeyhint="done" spellcheck="false"><button type="button" class="btn big" id="go">התחל</button></div></main>`,el=>{
-      el.querySelector('[data-back]').onclick=intro;const input=el.querySelector('#playerName5');input.addEventListener('input',()=>setName(input.value));
-      el.querySelector('#go').onclick=async()=>{setName(input.value);const b=el.querySelector('#go');b.disabled=true;b.textContent='טוען…';const op=similarOpponent(S.my);let sa,sb;
+      <button type="button" class="btn big" id="go">התחל</button></div></main>`,el=>{
+      el.querySelector('[data-back]').onclick=intro;
+      el.querySelector('#go').onclick=async()=>{const b=el.querySelector('#go');b.disabled=true;b.textContent='טוען…';const op=similarOpponent(S.my);let sa,sb;
         try{[sa,sb]=await Promise.all([loadSquad(my.id),loadSquad(op.id)])}catch(e){b.disabled=false;b.textContent='התחל';return toast('לא הצלחנו לטעון את הסגלים. בדקו את החיבור.')}if(screen!=='surv')return;
         const A=buildSide(my,sa,{participant:nameOrDefault()}),B=buildSide(op,sb,{twin:op.id===my.id,participant:'המחשב'});const best=S.stats.survBest;
         game({sides:{a:A,b:B},me:'a',first:'a',exit:intro,runner:({arena,audio,hud,signal})=>runSurvival({arena,audio,sides:{a:A,b:B},hud,signal,best}),custom:{end(res){
@@ -202,9 +202,9 @@ export function startApp(root,{audio,haptics=null}){
     show('daily',top('אתגר יומי',true,key)+`<main class="body center"><div class="versus one"><div>${crestOf(my)}<strong>${esc(my.name)}</strong></div><b class="vs">נגד</b><div>${crestOf(op)}<strong>${esc(op.name)}</strong></div></div>
       <div class="card"><p class="note">חמש בעיטות. אותו שוער ואותם קוביות לכולם היום: רק הדיוק שלך קובע.</p>
       ${done!==undefined?`<p class="big">היום קיבלת <b>${done}</b> מתוך 5</p><p class="note">רצף ימים: ${D.streak} · שיא: ${D.best}</p><button type="button" class="btn big alt" id="go">תרגול (לא נספר)</button>`
-        :`<p class="note">רצף ימים: ${D.streak} · שיא: ${D.best}</p><label for="playerName6">שם השחקן</label><input id="playerName6" type="text" maxlength="24" value="${esc(S.name)}" enterkeyhint="done" spellcheck="false"><button type="button" class="btn big" id="go">התחל את האתגר</button>`}</div></main>`,el=>{
-      el.querySelector('[data-back]').onclick=intro;const input=el.querySelector('#playerName6');input?.addEventListener('input',()=>setName(input.value));
-      el.querySelector('#go').onclick=async()=>{if(input)setName(input.value);const b=el.querySelector('#go');b.disabled=true;b.textContent='טוען…';let sa,sb;
+        :`<p class="note">רצף ימים: ${D.streak} · שיא: ${D.best}</p><button type="button" class="btn big" id="go">התחל את האתגר</button>`}</div></main>`,el=>{
+      el.querySelector('[data-back]').onclick=intro;
+      el.querySelector('#go').onclick=async()=>{const b=el.querySelector('#go');b.disabled=true;b.textContent='טוען…';let sa,sb;
         try{[sa,sb]=await Promise.all([loadSquad(my.id),loadSquad(op.id)])}catch(e){b.disabled=false;b.textContent='התחל';return toast('לא הצלחנו לטעון את הסגלים. בדקו את החיבור.')}if(screen!=='daily')return;
         const A=buildSide(my,sa,{participant:nameOrDefault()}),B=buildSide(op,sb,{participant:'המחשב'}),counts=done===undefined;
         game({sides:{a:A,b:B},me:'a',first:'a',exit:intro,runner:({arena,audio,hud,signal})=>runDaily({arena,audio,sides:{a:A,b:B},hud,signal,key}),custom:{end(res){

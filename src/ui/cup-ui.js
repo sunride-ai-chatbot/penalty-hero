@@ -56,16 +56,15 @@ export function cupFeature(C){
     show('cupreg',top('הרשמה לטורניר',true,'מתחיל ב־'+hhmm(def.at))+`<main class="body center">${error?`<p class="err">${esc(error)}</p>`:''}
       ${expired?`<p class="err">הטורניר הזה כבר התחיל או הסתיים.</p>`:''}
       <div class="vs-one">${my?crestOf(my):''}<strong>${my?esc(my.name):'עוד לא בחרת קבוצה'}</strong><button type="button" class="link" id="swap">${my?'החלף קבוצה':'בחר קבוצה'}</button></div>
-      <div class="card"><label for="cupName">השם שלך בטבלה</label><div class="avrow"><span id="avprev">${avatarHtml(S.avatar,S.name,'big')}</span><input id="cupName" type="text" maxlength="24" placeholder="איך קוראים לך?" value="${esc(S.name)}" enterkeyhint="done" spellcheck="false"><label class="btn camera" for="avfile" id="avbtn">📷 העלה תמונה</label><input type="file" id="avfile" class="vh" accept="image/*"></div>
+      <div class="card"><h2>התמונה שלך בטבלה</h2><div class="avrow"><span id="avprev">${avatarHtml(S.avatar,S.name,'big')}</span><label class="btn camera" for="avfile" id="avbtn">📷 העלה תמונה</label><input type="file" id="avfile" class="vh" accept="image/*"></div>
       <div class="icons" role="group" aria-label="או בחר אייקון">${ICONS.map(i=>`<button type="button" class="chip${S.avatar==='e:'+i?' on':''}" data-ic="${i}">${i}</button>`).join('')}${S.avatar?'<button type="button" class="chip" data-ic="">בלי תמונה</button>':''}</div>
       <p class="note">מתחיל בעוד <b id="eta"></b>. ההרשמה סוגרת בשעת הפתיחה. נשארים בטלפון פתוח ומחוברים.</p><button type="button" class="btn big" id="join"${expired?' disabled':''}>הירשם</button></div></main>`,el=>{
-      const input=el.querySelector('#cupName'),prev=el.querySelector('#avprev');const setAv=v=>{S.avatar=cleanAvatar(v);store.set('avatar',S.avatar);prev.innerHTML=avatarHtml(S.avatar,input.value,'big');for(const b of el.querySelectorAll('[data-ic]'))b.classList.toggle('on',!!S.avatar&&S.avatar==='e:'+b.dataset.ic)};
-      input.addEventListener('input',()=>{setName(input.value);if(!S.avatar)prev.innerHTML=avatarHtml('',input.value,'big')});
+      const prev=el.querySelector('#avprev');const setAv=v=>{S.avatar=cleanAvatar(v);store.set('avatar',S.avatar);prev.innerHTML=avatarHtml(S.avatar,S.name,'big');for(const b of el.querySelectorAll('[data-ic]'))b.classList.toggle('on',!!S.avatar&&S.avatar==='e:'+b.dataset.ic)};
       for(const b of el.querySelectorAll('[data-ic]'))b.onclick=()=>b.dataset.ic?setAv('e:'+b.dataset.ic):register(def);
       el.querySelector('#avfile').onchange=async e=>{const f=e.target.files&&e.target.files[0];if(!f)return;try{const d=await photoToAvatar(f);if(!d)return toast('לא הצלחנו להשתמש בתמונה הזו');setAv(d);register(def)}catch(x){toast('לא הצלחנו לפתוח את התמונה')}};el.querySelector('[data-back]').onclick=()=>home();
       const eta=el.querySelector('#eta'),upd=()=>{eta.textContent=clock(def.at-Date.now())};upd();const iv=setInterval(upd,1000);
       el.querySelector('#swap').onclick=()=>pickClub({title:'הקבוצה שלך',back:()=>register(def),done:id=>{S.my=id;store.set('club',id);register(def)}});
-      el.querySelector('#join').onclick=()=>{setName(input.value);if(!S.name)return toast('כתוב שם, כדי שנדע מי אתה בטבלה');if(!clubOf(S.my))return toast('בחר קבוצה');enter(def)};return()=>clearInterval(iv)})}
+      el.querySelector('#join').onclick=()=>{if(!S.name)return toast('חזור למסך הראשי וכתוב את שמך, כדי שנדע מי אתה בטבלה');if(!clubOf(S.my))return toast('בחר קבוצה');enter(def)};return()=>clearInterval(iv)})}
 
   async function enter(def){const t=await ensureTransport();if(!t.available)return home(MSG.service);closeCup();const my=clubOf(S.my);
     store.set('cupActive',JSON.stringify({id:def.id,at:def.at}));S.cupDef=def;

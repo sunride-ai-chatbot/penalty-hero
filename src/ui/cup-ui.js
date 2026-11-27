@@ -39,7 +39,7 @@ export function cupFeature(C){
 
   /* ---------- the start: the next public cup, or one for friends ---------- */
   async function home(error=''){const t=await ensureTransport(),off=!t.available;const at=nextSlot(Date.now());const active=(()=>{try{const a=JSON.parse(store.get('cupActive','null'));return a&&Date.now()<a.at+3*3600e3?a:null}catch(e){return null}})();
-    show('cuphome',top('ליגת נוקאאוט פנדלים',true,'עד 8 שחקנים · נוקאאוט עד הגמר · גביע')+`<main class="body center">
+    show('cuphome',top('ליגת חברים',true,'עד 8 שחקנים · נוקאאוט עד הגמר · גביע')+`<main class="body center">
       ${error?`<p class="err">${esc(error)}</p>`:''}${off?`<p class="err">משחק ברשת לא מוגדר בגרסה הזו.</p>`:`
       ${active&&!X.net?`<div class="card"><p class="note">נרשמת לטורניר שמתחיל ב־<bdi>${hhmm(active.at)}</bdi>.</p><button type="button" class="btn big" id="resume">חזרה לטורניר</button></div>`:''}
       <div class="card"><h2>הטורניר הציבורי הבא</h2><p class="big-time"><bdi>${hhmm(at)}</bdi></p><p class="note">בעוד <b id="eta"></b> · מי שנכנס עכשיו נרשם לאותו טורניר</p><button type="button" class="btn big" id="public">הרשמה לטורניר</button></div>
@@ -85,22 +85,22 @@ export function cupFeature(C){
       box.querySelector('#avfile').onchange=async e=>{const f=e.target.files&&e.target.files[0];if(!f)return;try{const d=await photoToAvatar(f);if(!d)return toast('לא הצלחנו להשתמש בתמונה הזו');set(d)}catch(x){toast('לא הצלחנו לפתוח את התמונה')}}};draw()}
   /* ---------- the waiting room: a countdown and the places filling up ---------- */
   function lobby(){const def=S.cupDef;
-    show('cuplobby',top('ליגת נוקאאוט',true,'מתחיל ב־'+hhmm(def.at))+`<main class="body center"><div class="countdown"><small>הבעיטה הראשונה בעוד</small><b id="cd">--:--</b></div>
+    show('cuplobby',top('ליגת חברים',true,'מתחיל ב־'+hhmm(def.at))+`<main class="body center"><div class="countdown"><small>הבעיטה הראשונה בעוד</small><b id="cd">--:--</b></div>
       <div class="slots" id="slots"></div><p class="note" id="lnote" role="status"></p>
       <div class="card"><button type="button" class="btn big" id="share">שתף קישור לטורניר</button><input class="linkbox" dir="ltr" readonly value="${esc(inviteLink(def))}" aria-label="קישור לטורניר"></div><section class="card" id="avcard"></section></main>`,el=>{
       const release=keepAwake();mountAvEditor(el.querySelector('#avcard'));el.querySelector('[data-back]').onclick=()=>{closeCup();home()};
-      el.querySelector('#share').onclick=async()=>{const link=inviteLink(def),data={title:'ליגת נוקאאוט פנדלים',text:`${nameOrDefault()} מזמין אותך לליגת פנדלים. מתחילים ב־${hhmm(def.at)}`,url:link};try{if(navigator.share){await navigator.share(data);return}}catch(e){if(e&&e.name==='AbortError')return}
+      el.querySelector('#share').onclick=async()=>{const link=inviteLink(def),data={title:'ליגת חברים',text:`${nameOrDefault()} מזמין אותך לליגת חברים בפנדלים. מתחילים ב־${hhmm(def.at)}`,url:link};try{if(navigator.share){await navigator.share(data);return}}catch(e){if(e&&e.name==='AbortError')return}
         try{await navigator.clipboard.writeText(link);toast('הקישור הועתק')}catch(e){el.querySelector('.linkbox').select();toast('סמנו והעתיקו את הקישור')}};
       const iv=setInterval(()=>{const cd=el.querySelector('#cd');if(cd)cd.textContent=clock(def.at-Date.now())},250);paintLobby();return()=>{clearInterval(iv);release()}})}
   function paintLobby(){const n=X.net,slots=document.querySelector('#slots');if(!n||!slots)return;const regs=n.regs();
     slots.innerHTML=Array.from({length:MAX_PLAYERS},(_,i)=>{const p=regs[i];if(!p)return `<div class="slot"><span class="av ini empty big" aria-hidden="true">?</span><b>ממתין…</b></div>`;return `<div class="slot on${p.id===S.pid?' me':''}">${avatarHtml(n.avatarOf(p.id)||p.av,p.name,'big')}<b>${esc(p.name)}</b></div>`}).join('');
     const note=document.querySelector('#lnote');if(note)note.textContent=n.status==='connecting'?'מתחבר…':regs.length<2?'עוד אף אחד לא נרשם. שלח את הקישור לחברים.':`${Math.min(regs.length,MAX_PLAYERS)} מתוך ${MAX_PLAYERS} נרשמו. אם לא ימלאו את המקומות, יתחילו עם מי שנרשם.`+(regs.length>MAX_PLAYERS?' ('+(regs.length-MAX_PLAYERS)+' ברשימת המתנה)':'')}
   const inviteLink=def=>{const u=new URL(location.href);u.search='';u.hash='';u.searchParams.set('cup',def.id);u.searchParams.set('at',String(def.at));return u.href};
-  function ended(text){closeCup();show('cupend',top('ליגת נוקאאוט',true)+`<main class="body center"><p class="err">${esc(text)}</p><button type="button" class="btn big" id="again">חזרה לליגה</button></main>`,el=>{el.querySelector('[data-back]').onclick=intro;el.querySelector('#again').onclick=()=>home()})}
+  function ended(text){closeCup();show('cupend',top('ליגת חברים',true)+`<main class="body center"><p class="err">${esc(text)}</p><button type="button" class="btn big" id="again">חזרה לליגה</button></main>`,el=>{el.querySelector('[data-back]').onclick=intro;el.querySelector('#again').onclick=()=>home()})}
 
   /* ---------- the bracket and the scoreboard ---------- */
   function bracket(){const n=X.net;if(!n?.cup)return lobby();
-    show('cupbracket',top('ליגת נוקאאוט',true,'לוח הטורניר')+`<main class="body"><section class="card mine" id="mine"></section><div id="rounds"></div><section class="card"><h2>טבלת ניקוד</h2><div id="board"></div></section><section class="card" id="avcard"></section></main>`,el=>{
+    show('cupbracket',top('ליגת חברים',true,'לוח הטורניר')+`<main class="body"><section class="card mine" id="mine"></section><div id="rounds"></div><section class="card"><h2>טבלת ניקוד</h2><div id="board"></div></section><section class="card" id="avcard"></section></main>`,el=>{
       const release=keepAwake();mountAvEditor(el.querySelector('#avcard'));el.querySelector('[data-back]').onclick=()=>{closeCup();home()};paintBracket();const iv=setInterval(()=>{tickMine()},500);return()=>{clearInterval(iv);release()}});
     if(champion(n.cup)&&!X.shown){X.done=true;finish(true)}}
   function paintBracket(){const n=X.net,cup=n?.cup;if(!cup||screen()!=='cupbracket')return;

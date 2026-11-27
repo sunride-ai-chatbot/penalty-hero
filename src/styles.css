@@ -129,7 +129,7 @@ input[type=text]:focus{outline:2px solid var(--go);outline-offset:1px;border-col
 .game-arena::before{content:"";position:absolute;inset:0;z-index:9;pointer-events:none;background:linear-gradient(#000,#000) top/100% 0 no-repeat,linear-gradient(#000,#000) bottom/100% 0 no-repeat;transition:background-size .9s ease}
 .game-arena.cine::before{background-size:100% 7%,100% 7%}
 
-/* ---------- ליגת נוקאאוט ---------- */
+/* ---------- ליגת חברים ---------- */
 .chip.hot{background:rgba(233,196,106,.22);border-color:var(--gold)}.chip.on{background:var(--go);color:#10210a;border-color:transparent}
 .big-time{margin:2px 0 0;font:800 44px/1.1 ui-monospace,"SF Mono",Menlo,monospace;text-align:center;color:var(--gold)}
 .countdown{text-align:center;padding:10px 0 2px}.countdown small{display:block;color:var(--muted);font-size:15px}.countdown b{display:block;font:800 64px/1.1 ui-monospace,"SF Mono",Menlo,monospace;color:var(--go);letter-spacing:2px;text-shadow:0 0 24px rgba(198,242,78,.35)}

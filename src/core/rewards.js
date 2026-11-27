@@ -33,7 +33,7 @@ export const MEDALS=[
   {id:'surv5',title:'הישרדות: חמישה שערים',need:5,of:s=>s.survBest,opens:{field:'rain'}},
   {id:'surv10',title:'הישרדות: עשרה שערים',need:10,of:s=>s.survBest},
   {id:'sniper',title:'צלף: חמישה בולים בסבב תרגול אחד',need:5,of:s=>s.pracBestBulls},
-  {id:'cup1',title:'השתתפת בליגת נוקאאוט',need:1,of:s=>s.cupPlayed},
+  {id:'cup1',title:'השתתפת בליגת חברים',need:1,of:s=>s.cupPlayed},
   {id:'champion',title:'אלוף: זכית בגביע או בליגה',need:1,of:s=>s.tourWins+s.cupWins,opens:{ball:'champ'}}];
 export const ballById=id=>BALLS.find(b=>b.id===id)||BALLS[0];
 export const fieldById=id=>FIELDS.find(f=>f.id===id)||FIELDS[0];

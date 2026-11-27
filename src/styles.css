@@ -232,10 +232,21 @@ input[type=text]:focus{outline:2px solid var(--go);outline-offset:1px;border-col
 @media(max-height:650px){.intro-logo{width:min(45vw,23vh)}.intro-body .chip{min-height:48px}.intro-body .chip svg{width:19px;height:19px}}
 
 
-/* Keep the original full-screen video; dock the existing controls below the visible action. */
-#app[data-screen=intro] .intro-body{justify-content:flex-start;overflow-y:auto;gap:8px}
-#app[data-screen=intro] .intro-logo{flex:none}
-#app[data-screen=intro] .intro-card{flex:none;margin-top:auto}
-#app[data-screen=intro] .more,#app[data-screen=intro] .intro-foot{flex:none}
-#app[data-screen=intro] .intro-card{padding-top:0}
-#app[data-screen=intro] .intro-logo{margin-bottom:clamp(100px,23dvh,240px)}
+
+/* Reference layout: full-width cinematic video, stacked premium actions, three-column tiles. */
+#app[data-screen=intro] .intro-video{object-fit:cover;width:100%;height:100%}
+#app[data-screen=intro] .intro-body{justify-content:flex-start;overflow-y:auto;gap:8px;padding-inline:14px}
+#app[data-screen=intro] .intro-logo{flex:none;width:min(58vw,260px,29dvh);margin-bottom:clamp(65px,12dvh,140px)}
+#app[data-screen=intro] .intro-card.card{flex:none;margin-top:auto;padding:12px;background:linear-gradient(145deg,#171b20f5,#090c11f5);border:1px solid #776b5b;border-radius:14px}
+.intro-card label{text-align:right;font-size:12px}
+.intro-card #playerName{width:100%;height:36px;margin:4px 0 10px;text-align:right}
+.intro-card .btn{min-height:52px;background:linear-gradient(110deg,#370710,#a0172d 48%,#490912);border:1px solid #eac98a;color:#fff0cc;box-shadow:inset 0 1px 2px #fff5,0 3px 8px #0008;font-size:19px}
+.intro-card .btn.alt{background:linear-gradient(120deg,#c6b18c,#fff1d6 50%,#c7b18b);color:#211a13}
+.intro-card .btn::after{display:block;font-size:10px;font-weight:500;letter-spacing:1px;line-height:1.2}
+.intro-card .btn[data-mode=cpu]::after{content:"VS COMPUTER"}.intro-card .btn[data-mode=net]::after{content:"ONLINE MATCH"}
+#app[data-screen=intro] .more{flex:none;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.intro-body .chip{min-height:76px;background:radial-gradient(ellipse at 70% 0,#5b514044,transparent 65%),linear-gradient(145deg,#252c33,#0c1015 65%,#29131b);border:1px solid #a89a83;box-shadow:inset 0 1px 1px #fff3;gap:3px;font-size:12px}
+.intro-body .chip svg{width:29px;height:29px;filter:drop-shadow(0 2px 2px #000);color:#edcb85}
+.intro-body .chip::after{font-size:8px;letter-spacing:.3px;color:#d6cdbf;line-height:1.1}
+.intro-body .chip[data-mode=cup]::after{content:"FRIENDS LEAGUE"}.intro-body .chip[data-mode=tour]::after{content:"KNOCKOUT"}.intro-body .chip[data-mode=prac]::after{content:"PRACTICE"}.intro-body .chip[data-mode=daily]::after{content:"DAILY CHALLENGE"}.intro-body .chip[data-mode=cabinet]::after{content:"TROPHY ROOM"}.intro-body .chip[data-mode=stats]::after{content:"MY STATS"}.intro-body .chip[data-mode=surv]::after{content:"SURVIVAL"}.intro-body .chip[data-mode=king]::after{content:"PENALTY KING"}
+.intro-body .chip[data-mode=king]{grid-column:span 2;background:linear-gradient(115deg,#310a12,#8c172a,#220910);border-color:#eac98a}.intro-foot{flex:none}

@@ -12,7 +12,7 @@ class Aborted extends Error{constructor(){super('aborted');this.name='AbortError
 /* a clock that counts only what was shown: a slow frame, or a tab that was away, adds a tenth of a second at most */
 const shownClock=()=>{let last=performance.now(),ms=0;return {tick(){const n=performance.now();ms+=Math.min(100,Math.max(0,n-last));last=n;return ms},get ms(){return ms}}};
 
-export function createArena(host,{debug=false,audio=null,force2d=false,look=null}={}){
+export function createArena(host,{debug=false,audio=null,force2d=false,look=null,quality=null,onQuality=null}={}){
   host.classList.add('game-arena');host.tabIndex=0;
   host.innerHTML=`<div class="ar-view"></div><div class="ar-load" role="status">טוען את האצטדיון…</div>
     <div class="ar-role" aria-live="assertive"></div><div class="ar-chip" hidden></div><div class="ar-flash" aria-live="assertive"></div><div class="ar-hint" aria-live="polite"></div>
@@ -30,11 +30,13 @@ export function createArena(host,{debug=false,audio=null,force2d=false,look=null
     const loop=t=>{if(rainCv!==cv)return;const dt=Math.min(.05,(t-t0)/1000);t0=t;if(Math.abs(host.clientWidth/2-w)>2||Math.abs(host.clientHeight/2-h)>2)fit();g.clearRect(0,0,w,h);g.lineWidth=1;
       for(const d of drops){d.y+=d.v*dt;d.x-=d.v*dt*.2;if(d.y>h+12||d.x<-12){d.y=-12-Math.random()*20;d.x=Math.random()*(w+40)}g.strokeStyle=`rgba(205,224,255,${d.a})`;g.beginPath();g.moveTo(d.x,d.y);g.lineTo(d.x+d.l*.2,d.y-d.l);g.stroke()}rainRaf=requestAnimationFrame(loop)};rainRaf=requestAnimationFrame(loop)};
   const stop=e=>e.preventDefault();host.addEventListener('contextmenu',stop);host.addEventListener('selectstart',stop);host.addEventListener('dragstart',stop);
-  async function build(opts){loadEl.hidden=false;loadEl.textContent='טוען את האצטדיון…';
+  /* the loading line grows with the pictures that came in; it never goes back */
+  let shown=0;const showProgress=f=>{if(disposed||loadEl.hidden)return;const v=Math.max(shown,Math.round(f*100));shown=v;const b=loadEl.querySelector('.ld b');if(b){b.style.width=v+'%';loadEl.querySelector('span').textContent='טוען את האצטדיון… '+v+'%'}};
+  async function build(opts){loadEl.hidden=false;shown=0;loadEl.innerHTML='<span>טוען את האצטדיון…</span><i class="ld"><b></b></i>';
     if(stage){try{stage.dispose()}catch(e){}stage=null}
     const flat=async()=>{const {createFlatStage}=await import('../render/flat-stage.js');return createFlatStage(view,opts)};
     try{if(force2d)stage=await flat();else{const {createPenaltyView}=await import('../../assets/penalties29/demo3d/penalty.js');
-        stage=createPenaltyView(view,{...opts,onError:()=>{api.broken=true},onSlow:()=>{api.slow=true}})}}
+        const Q=quality?quality():{level:0,auto:false};stage=createPenaltyView(view,{...opts,quality:Q.level,auto:Q.auto,onQuality,onProgress:showProgress,onError:()=>{api.broken=true},onSlow:()=>{api.slow=true}})}}
     catch(e){console.warn('3D view unavailable, using the simple picture',e);stage=await flat()}
     const ok=await stage.ready;if(disposed)return false;
     if(!ok){loadEl.innerHTML='לא הצלחנו לטעון את השחקן המצולם. <button type="button" class="btn small">נסה שוב</button>';return new Promise(res=>{loadEl.querySelector('button').onclick=()=>res(build(opts))})}

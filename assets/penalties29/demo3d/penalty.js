@@ -18,7 +18,7 @@ const ease=u=>1-Math.pow(1-u,2),smooth=u=>u*u*(3-2*u);
 
 export function createPenaltyView(host,opts={}){
   const wrap=document.createElement('div');wrap.className='pg-3d';host.prepend(wrap);
-  let renderer,world,ball,observer,raf=0,disposed=false,keeper=null,taker=null,clock=0,last=0,paused=false;
+  let renderer,world,ball,observer,partyT=0,raf=0,disposed=false,keeper=null,taker=null,clock=0,last=0,paused=false;
   const scene=new T.Scene(),camera=new T.PerspectiveCamera(50,1,.1,320),ray=new T.Raycaster(),v3=new T.Vector3(),v2=new T.Vector2();
   let film=null,kf=null,pf=null,celeb=null,lastO={},shot=null,act=null,netT=-1,netZ=0,netAmp=1,netY=1.2,caughtAt=null,fps={n:0,t:0,value:0};
   // effects: slow motion on a goal, a freeze on contact with the frame, camera shake, a push in; and the replay camera
@@ -27,7 +27,18 @@ export function createPenaltyView(host,opts={}){
   const gloveL=new T.Vector3(),gloveR=new T.Vector3(),hold=new T.Vector3();
   // can this device draw the scene? After a warm-up, 1.2 seconds of frames are timed; under ten a second the game is told once.
   const perf={t:0,n:0,from:0,skip:false,done:false};
-  const onVis=()=>{perf.skip=true;if(!document.hidden){last=performance.now();if(!raf&&!disposed&&!paused)raf=requestAnimationFrame(frame)}};document.addEventListener('visibilitychange',onVis);
+  // quality: 0 full, 1 lighter (pixel ratio 1.5, a smaller shadow map), 2 light (pixel ratio 1, no shadows). With opts.auto the view steps down by
+  // itself when the frames come slower than 38 a second for two and a half seconds, and tells the game (opts.onQuality) so the next scene starts there.
+  const QUALITY=[{pr:2,shadow:1024},{pr:1.5,shadow:512},{pr:1,shadow:0}];let level=Math.max(0,Math.min(2,opts.quality|0)),sunLight=null;
+  const adapt={from:0,t:0,n:0,done:false};
+  function applyQuality(redraw=true){if(!renderer)return;const q=QUALITY[level];renderer.setPixelRatio(Math.min(devicePixelRatio||1,opts.maxPixelRatio||q.pr,q.pr));
+    if(sunLight){sunLight.castShadow=q.shadow>0;if(q.shadow>0&&sunLight.shadow.mapSize.x!==q.shadow){sunLight.shadow.mapSize.set(q.shadow,q.shadow);if(sunLight.shadow.map){sunLight.shadow.map.dispose();sunLight.shadow.map=null}}}
+    if(redraw)resize()}
+  function watch(now,gap){if(!opts.auto||adapt.done||level>=2||!opts.onQuality)return;if(!adapt.from){adapt.from=now;return}if(now-adapt.from<1500)return;
+    if(perf.skip||document.hidden||gap>1000||rep||celeb){adapt.t=adapt.n=0;return}   // a hidden tab, a replay or a pause says nothing about the device
+    adapt.t+=gap;adapt.n++;if(adapt.t<2500)return;const f=adapt.n*1000/adapt.t;adapt.t=adapt.n=0;
+    if(f<38){level++;applyQuality();adapt.from=now;if(level>=2)adapt.done=true;try{opts.onQuality(level)}catch(e){}}}
+  const onVis=()=>{perf.skip=true;adapt.t=adapt.n=0;if(!document.hidden){last=performance.now();if(!raf&&!disposed&&!paused)raf=requestAnimationFrame(frame)}};document.addEventListener('visibilitychange',onVis);
   function measure(now,gap){if(!perf.from){perf.from=now;return}if(now-perf.from<900)return;if(perf.skip||document.hidden||gap>5000){perf.skip=false;return}
     perf.t+=gap;perf.n++;if(perf.t<1200)return;perf.done=true;if(perf.n*1000/perf.t<10){try{opts.onSlow&&opts.onSlow()}catch(e){}}}
   // keeper: wait → set (prepare) → read (ball struck, still on his feet) → dive (committed, one direction) → land → down
@@ -41,7 +52,7 @@ export function createPenaltyView(host,opts={}){
     textures.forEach(t=>t.dispose());geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose())}
   function drop(a){if(!a)return;scene.remove(a.group,a.shadow);disposeObject(a.group);disposeObject(a.shadow)}
   function dispose(){if(disposed)return;disposed=true;cancelAnimationFrame(raf);raf=0;observer?.disconnect();document.removeEventListener('visibilitychange',onVis);act=null;shot=null;
-    film?.dispose();kf?.dispose();pf?.dispose();world?.crowdVideo?.dispose();disposeObject(scene);renderer?.dispose();try{renderer?.forceContextLoss()}catch(e){}wrap.remove()}
+    clearTimeout(partyT);film?.dispose();kf?.dispose();pf?.dispose();world?.crowdVideo?.dispose();disposeObject(scene);renderer?.dispose();try{renderer?.forceContextLoss()}catch(e){}wrap.remove()}
   function fail(e){if(disposed)return;dispose();try{opts.onError&&opts.onError(e)}catch(x){}}
   function cast(o){
     drop(keeper);drop(taker);
@@ -150,7 +161,7 @@ export function createPenaltyView(host,opts={}){
     if(shot&&shot.reactAt===null&&shot.reaction&&shot.contactAt!==null&&clock-shot.contactAt>=FOLLOW)shot.reactAt=clock;   // the reaction follows the filmed motion, never cuts into it
     if(act){act.t+=dt;const u=clamp(act.t/act.dur);act.step(u,act.t);if(u>=1){const a=act;act=null;a.done&&a.done()}}}
   function frame(now){raf=0;if(disposed||paused)return;try{
-    const gap=now-last;if(!perf.done)measure(now,gap);last=now;fps.n++;fps.t+=gap;if(fps.t>=500){fps.value=Math.round(fps.n*1000/fps.t);fps.n=fps.t=0}
+    const gap=now-last;if(!perf.done)measure(now,gap);watch(now,gap);last=now;fps.n++;fps.t+=gap;if(fps.t>=500){fps.value=Math.round(fps.n*1000/fps.t);fps.n=fps.t=0}
     const dt0=clamp(gap/1000,0,.05);fxStep(dt0);advance(dt0*timeScale());   // a long gap (the tab was away) advances the kick by 50 ms at most
     draw()}catch(e){console.error(e);return fail(e)}
     if(!disposed&&!document.hidden)raf=requestAnimationFrame(frame)}
@@ -215,21 +226,24 @@ export function createPenaltyView(host,opts={}){
     cheer(v){if(world&&world.crowd)world.crowd.cheer=v==null?1:v},
     /** stop drawing (another screen is on top) / start again without a jump in time */
     pause(){paused=true;cancelAnimationFrame(raf);raf=0},resume(){if(disposed||!paused)return;paused=false;last=performance.now();raf=requestAnimationFrame(frame)},
+    setQuality(l){level=Math.max(0,Math.min(2,l|0));applyQuality()},get quality(){return level},
     /** tests: advance the picture by hand while paused */
     step(seconds){let left=seconds;while(left>1e-9){const dt=Math.min(1/60,left);advance(dt);left-=dt}draw()},
     /** for the hidden test view */
-    debug(){return {mood:world?.mood,skin:ball?.look?.(),fps:fps.value,clip:film?.shown?.clip||null,frame:film?.shown?.frame??-1,contactFrame:film?Math.floor(film.contact*20):null,contactAt:shot?.contactAt??null,clock,keeper:K.state,keeperZ:+K.z.toFixed(3),keeperSide:K.side,ball:{...B},filmed:!!film?.loaded,power:shot?.r?.power??null,fx:+fx.scale.toFixed(2),replay:rep,shake:+fx.shake.toFixed(4),calls:renderer?.info?.render?.calls,textures:renderer?.info?.memory?.textures,geometries:renderer?.info?.memory?.geometries}},
+    debug(){return {quality:level,party:!!pf,mood:world?.mood,skin:ball?.look?.(),fps:fps.value,clip:film?.shown?.clip||null,frame:film?.shown?.frame??-1,contactFrame:film?Math.floor(film.contact*20):null,contactAt:shot?.contactAt??null,clock,keeper:K.state,keeperZ:+K.z.toFixed(3),keeperSide:K.side,ball:{...B},filmed:!!film?.loaded,power:shot?.r?.power??null,fx:+fx.scale.toFixed(2),replay:rep,shake:+fx.shake.toFixed(4),calls:renderer?.info?.render?.calls,textures:renderer?.info?.memory?.textures,geometries:renderer?.info?.memory?.geometries}},
     dispose};
   try{
     renderer=new T.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.outputColorSpace=T.SRGBColorSpace;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=.95;renderer.shadowMap.type=T.PCFSoftShadowMap;
     renderer.setPixelRatio(Math.min(devicePixelRatio||1,opts.maxPixelRatio||2));renderer.shadowMap.enabled=true;wrap.append(renderer.domElement);
     world=buildWorld(scene,renderer);
     // the shadow camera covers the penalty area only, so bodies and feet resolve cleanly
-    scene.traverse(o=>{if(o.isDirectionalLight&&o.castShadow){o.shadow.mapSize.set(1024,1024);Object.assign(o.shadow.camera,{left:-14,right:14,top:14,bottom:-14});o.target.position.set(45,0,0);o.shadow.camera.updateProjectionMatrix()}});
-    ball=makeBall(scene);
+    scene.traverse(o=>{if(o.isDirectionalLight&&o.castShadow){sunLight=sunLight||o;o.shadow.mapSize.set(1024,1024);Object.assign(o.shadow.camera,{left:-14,right:14,top:14,bottom:-14});o.target.position.set(45,0,0);o.shadow.camera.updateProjectionMatrix()}});
+    applyQuality(false);ball=makeBall(scene);
     renderer.domElement.addEventListener('webglcontextlost',e=>{e.preventDefault();if(!disposed)fail(new Error('context lost'))});
-    film=filmedTaker(scene);kf=keeperFilm(scene);pf=keeperFilm(scene,{base:'party',grounded:true,white:true});
-    api.ready=film.ready.then(()=>{if(disposed)return false;film.warm(renderer);draw();return true},e=>{console.error('Photographed taker unavailable',e);return false});
+    const mgr=T.DefaultLoadingManager,prevProgress=mgr.onProgress;let peak=0;if(opts.onProgress)mgr.onProgress=(u,l,t)=>{peak=Math.max(peak,t?l/t:0);try{opts.onProgress(Math.min(.98,peak))}catch(e){}};
+    film=filmedTaker(scene);kf=keeperFilm(scene);   // the celebration film is 3 MB and only needed at the end of a duel: it loads a few seconds after the first kick is ready
+    api.ready=film.ready.then(()=>{if(disposed)return false;film.warm(renderer);draw();return true},e=>{console.error('Photographed taker unavailable',e);return false}).finally(()=>{if(opts.onProgress)mgr.onProgress=prevProgress;try{opts.onProgress&&opts.onProgress(1)}catch(e){}
+      partyT=setTimeout(()=>{if(!disposed&&!pf)pf=keeperFilm(scene,{base:'party',grounded:true,white:true})},3500)});
     api.reset(opts);renderer.domElement.setAttribute('aria-label','מגרש פנדלים תלת־ממדי');
     observer=new ResizeObserver(()=>{try{resize()}catch(e){fail(e)}});observer.observe(wrap);
     last=performance.now();raf=requestAnimationFrame(frame);

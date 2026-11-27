@@ -19,8 +19,7 @@ export async function soloKick({arena,audio,hud,T,G,taker,keeper,n,seed,diveRng,
   const result=resolveKick({aim:c.aim,meter:c.meter,shotSkill:taker.shot,keeperSkill:keeper.keep,dive:aiDive(keeper.keep,diveRng),curl:c.curl||0,rng:makeRng(String(seed))});
   arena.hint('');arena.roleOff();arena.pressure(0);arena.info({dive:result.keeper.dir,how:`${result.how} x${result.x} y${result.y} p${result.power}`});
   let told=false;const settle=()=>{if(told)return;told=true;const word=resultWord(result.how,true,result.catch,callBag);arena.flash(word.text,word.good);arena.cheer(word.good?1:.3);
-    if(result.how==='goal')audio?.goal(true);else if(result.how==='save')audio?.save(result.catch);else if(result.how==='post')audio?.post();else audio?.miss(overTheBar(result));
-    try{navigator.vibrate&&navigator.vibrate(word.good?[18,40,18]:28)}catch(e){}};
+    if(result.how==='goal')audio?.goal(true);else if(result.how==='save')audio?.save(result.catch);else if(result.how==='post')audio?.post();else audio?.miss(overTheBar(result));};
   await arena.play(result,{onContact:()=>audio?.kick(result.power),onResult:settle,signal});settle();return result}
 
 /** Survival: no limit and one life. After every goal the keeper is two points better (up to 99); from the sixth goal on the marker runs faster. */

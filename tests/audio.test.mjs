@@ -33,3 +33,14 @@ test('the finale call closes the duel, the winners\' song waits for the speech, 
   const calls=()=>f.log.filter(l=>l[0]==='start'&&/crowd-call/.test(l[1])).map(l=>l[1]);
   a.bedOff();a.finale();assert.deepEqual(calls(),['crowd-call-end']);a.finale();assert.equal(calls().length,1,'once');a.win();assert.ok(f.log.some(l=>l[1]==='crowd-song'));
   f.advance(20);a.bedOn();a.bedOff();f.log.length=0;a.finale();assert.deepEqual(calls(),['crowd-call-end'],'the next duel can have its own finale')});
+
+test('settings: the commentator, the effects and the crowd each switch off alone, the volume scales the master, and the buzz follows the moments',async()=>{
+  const f=fakeCtx();const buzz=[];const hap={goal:m=>buzz.push(m?'goal':'conceded'),save:()=>buzz.push('save'),post:()=>buzz.push('post'),miss:()=>buzz.push('miss'),win:()=>buzz.push('win'),configure(){}};
+  const a=createAudio({base:'http://x/',storage:null,haptics:hap});a.unlock();await new Promise(r=>setTimeout(r,30));a.bedOn();
+  const started=()=>f.log.filter(l=>l[0]==='start').map(l=>l[1]);const orig=Math.random;Math.random=()=>0.1;
+  try{a.configure({voice:false});f.log.length=0;a.goal(true);assert.ok(!started().some(n=>/crowd-call/.test(n)),'no commentator');assert.ok(started().includes('sfx-net')&&started().includes('crowd-goal'),'the rest stays');
+    a.configure({voice:true,sfx:false});f.advance(10);f.log.length=0;a.whistle();a.kick(80);a.post();a.save(true);assert.ok(!started().some(n=>/^sfx-/.test(n)),'no effects');assert.ok(started().includes('crowd-chance'),'the crowd stays');
+    a.configure({sfx:true,crowd:false});f.advance(10);f.log.length=0;a.goal(true);a.miss(false);a.win();assert.ok(!started().some(n=>/crowd-(goal|chance|song|bed)/.test(n)),'no crowd');assert.ok(started().includes('sfx-net'));
+    a.configure({crowd:true});assert.deepEqual(a.opts,{voice:true,sfx:true,crowd:true,vol:1});a.configure({vol:1.4});assert.equal(a.opts.vol,1.4);a.configure({vol:-1});assert.equal(a.opts.vol,1.4,'a bad volume is ignored')}
+  finally{Math.random=orig}
+  assert.ok(['goal','post','save','miss','win'].every(k=>buzz.includes(k)),'every moment buzzes, also with the sound off: '+buzz)});

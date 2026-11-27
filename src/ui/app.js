@@ -13,6 +13,8 @@ import {createRoom,MSG} from '../net/protocol.js';
 import {loadTransport,newRoomCode,cleanCode} from '../net/transport.js';
 import {cupFeature} from './cup-ui.js';
 import {cabinetFeature} from './cabinet-ui.js';
+import {settingsFeature} from './settings-ui.js';
+import {qualityLevel} from '../core/settings.js';
 import {drawCup,settleRound,opponentOf,roundName,ROUNDS} from '../core/bracket.js';
 import {treeHtml} from './tree-ui.js';
 
@@ -20,7 +22,7 @@ const ASSET=p=>new URL('../../assets/'+p,import.meta.url).href;
 const store={get(k,d=''){try{return localStorage.getItem('ph.'+k)??d}catch(e){return d}},set(k,v){try{localStorage.setItem('ph.'+k,v)}catch(e){}}};
 export const cleanName=s=>String(s||'').replace(/[\u0000-\u001f<>]/g,'').replace(/\s+/g,' ').trim().slice(0,24);
 
-export function startApp(root,{audio}){
+export function startApp(root,{audio,haptics=null}){
   const params=new URLSearchParams(location.search),debug=params.has('debug'),force2d=params.get('view')==='2d';
   const S={name:cleanName(store.get('name')),mode:null,my:store.get('club')||null,opp:null,invite:cleanCode(params.get('room')||params.get('pen')),room:null,transport:null,busy:null};
   let leave=null,screen='';   // leave(): cleanup of the screen on show
@@ -50,10 +52,10 @@ export function startApp(root,{audio}){
         ${S.cupInvite?`<button type="submit" class="btn big" data-mode="cupjoin">הצטרף לליגת הנוקאאוט</button><button type="button" class="btn ghost" data-mode="cpu">מול המחשב</button>`:S.invite?`<button type="submit" class="btn big" data-mode="net">הצטרף לדו־קרב</button><button type="button" class="btn ghost" data-mode="cpu">מול המחשב</button>`
           :`<button type="submit" class="btn big" data-mode="cpu">מול המחשב</button><button type="button" class="btn big alt" data-mode="net">מול חבר ברשת</button>`}
 
-      </form><div class="more" role="group" aria-label="עוד מצבים"><button type="button" class="chip hot" data-mode="cup">ליגת נוקאאוט</button><button type="button" class="chip" data-mode="king">👑 מלך הפנדלים</button><button type="button" class="chip" data-mode="tour">גביע מול המחשב</button><button type="button" class="chip" data-mode="surv">הישרדות</button><button type="button" class="chip" data-mode="daily">אתגר יומי</button><button type="button" class="chip" data-mode="cabinet">🏆 ארון גביעים</button><button type="button" class="chip" data-mode="stats">הסטטיסטיקה שלי</button></div><footer class="intro-foot"><button type="button" class="icon mute" data-mute aria-label="השתקה" aria-pressed="${audio.muted}">${audio.muted?'🔇':'🔊'}</button><span>Penalty Hero · גרסה <bdi dir="ltr">${VERSION}</bdi></span></footer></div>`,
+      </form><div class="more" role="group" aria-label="עוד מצבים"><button type="button" class="chip hot" data-mode="cup">ליגת נוקאאוט</button><button type="button" class="chip" data-mode="king">👑 מלך הפנדלים</button><button type="button" class="chip" data-mode="tour">גביע מול המחשב</button><button type="button" class="chip" data-mode="surv">הישרדות</button><button type="button" class="chip" data-mode="daily">אתגר יומי</button><button type="button" class="chip" data-mode="cabinet">🏆 ארון גביעים</button><button type="button" class="chip" data-mode="stats">הסטטיסטיקה שלי</button></div><footer class="intro-foot"><button type="button" class="icon mute" data-mute aria-label="השתקה" aria-pressed="${audio.muted}">${audio.muted?'🔇':'🔊'}</button><button type="button" class="icon" data-mode="settings" aria-label="הגדרות">⚙️</button><span>Penalty Hero · גרסה <bdi dir="ltr">${VERSION}</bdi></span></footer></div>`,
     el=>{const v=el.querySelector('video'),play=()=>{const p=v.play();p&&p.catch&&p.catch(()=>{})};play();const vis=()=>{document.hidden?v.pause():play()};document.addEventListener('visibilitychange',vis);el.addEventListener('pointerdown',play,{passive:true});
       const input=el.querySelector('#playerName');input.addEventListener('input',()=>setName(input.value));
-      const choose=mode=>{setName(input.value);S.mode=mode;if(mode==='stats')return statsScreen();if(mode==='cabinet')return cab.screen();if(mode==='king')return cup.kingScreen(intro);if(mode==='cup')return cup.home();if(mode==='cupjoin')return cup.register(S.cupInvite);if(mode==='daily')return daily();pickMine()};
+      const choose=mode=>{setName(input.value);S.mode=mode;if(mode==='stats')return statsScreen();if(mode==='cabinet')return cab.screen();if(mode==='settings')return settings.screen();if(mode==='king')return cup.kingScreen(intro);if(mode==='cup')return cup.home();if(mode==='cupjoin')return cup.register(S.cupInvite);if(mode==='daily')return daily();pickMine()};
       el.querySelector('form').addEventListener('submit',e=>{e.preventDefault();choose(e.submitter?.dataset.mode||(S.invite?'net':'cpu'))});
       for(const b of el.querySelectorAll('button[data-mode][type=button]'))b.addEventListener('click',()=>choose(b.dataset.mode));
       return()=>{document.removeEventListener('visibilitychange',vis);v.pause();v.removeAttribute('src');v.load()}})}
@@ -199,7 +201,7 @@ export function startApp(root,{audio}){
     show('game',`<div class="hud"><div class="hud-side"><button type="button" class="icon" id="quit" aria-label="יציאה מהדו־קרב">✕</button><button type="button" class="icon mute" data-mute aria-label="השתקה" aria-pressed="${audio.muted}">${audio.muted?'🔇':'🔊'}</button></div><div class="hud-rows">${row(me)}${row(other)}</div></div>
       <div class="arena" id="arena"></div><div class="who" id="who" aria-live="polite"></div><div class="panel" id="panel" hidden></div>`,el=>{
       const release=keepAwake();const guard=e=>{if(net&&!over){e.preventDefault();e.returnValue=''}};window.addEventListener('beforeunload',guard);
-      arena=createArena(el.querySelector('#arena'),{debug,audio,force2d,look:()=>cab.look()});if(debug)window.__ph={arena,sides,me,net};audio.bedOn();
+      arena=createArena(el.querySelector('#arena'),{debug,audio,force2d,look:()=>cab.look(),quality:()=>({level:qualityLevel(S.set.quality,S.qAuto),auto:S.set.quality==='auto'&&(!debug||params.has('adapt'))}),onQuality:l=>{S.qAuto=Math.max(S.qAuto,l);store.set('qAuto',String(S.qAuto))}});if(debug)window.__ph={arena,sides,me,net};audio.bedOn();
       preloadFaces([sides.a,sides.b]);
       const hud={turn({turn,taker,keeper,iKick,takerSide,keeperSide}){for(const r of el.querySelectorAll('.hud-row'))r.classList.toggle('on',r.dataset.side===turn.side);
           const kit=kitsFor(takerSide,keeperSide).kit;   /* the face waits in the club's colour with the shirt number until the photograph is in */
@@ -238,6 +240,7 @@ export function startApp(root,{audio}){
       return()=>{over=true;ac.abort();release();window.removeEventListener('beforeunload',guard);document.removeEventListener('visibilitychange',vis);audio.stopAll();try{arena.dispose()}catch(e){}if(debug)window.__ph=null;if(R){R.ended=null}}})}
 
   const cab=cabinetFeature({S,show,top,store,intro,toast});
+  const settings=settingsFeature({S,show,top,store,intro,audio,haptics,toast});
   const cupDone=won=>{recordCup(S.stats,won);saveStats();const f=cab.lines(cab.fresh());if(f.length)toast(f.join(' · '),4800)};
   const cup=cupFeature({cupDone,S,show,top,crestOf,toast,store,getCatalog,clubById,loadSquad,buildSide,cleanName,nameOrDefault,setName,intro,game,keepAwake,audio,RULES_VERSION,loadTransport,pickClub:picker});
   S.cupInvite=cup.parseInvite(params);

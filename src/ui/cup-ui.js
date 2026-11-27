@@ -73,7 +73,7 @@ export function cupFeature(C){
     X.net=createCupNet({connect:t.connect,cupId:def.id,kickoffAt:def.at,me:()=>({id:S.pid,name:nameOrDefault(),team:my.id,av:S.avatar}),on:{change:repaint,fail:m=>{closeCup();home(m)}}});
     lobby()}
   function onChange(){const n=X.net;if(!n)return;
-    if(screen()==='cuplobby'){if(n.status==='started'){try{audio.whistle();navigator.vibrate&&navigator.vibrate([60,40,60])}catch(e){}return bracket()}if(n.status==='cancelled'||n.status==='late')return ended(n.status==='late'?CUP_MSG.late:CUP_MSG.few);return paintLobby()}
+    if(screen()==='cuplobby'){if(n.status==='started'){try{audio.whistle();audio.buzz('start')}catch(e){}return bracket()}if(n.status==='cancelled'||n.status==='late')return ended(n.status==='late'?CUP_MSG.late:CUP_MSG.few);return paintLobby()}
     if(screen()==='cupbracket')paintBracket();
     if(n.cup&&champion(n.cup)&&!X.done){X.done=true;finish()}}
   const screen=()=>document.querySelector('#app')?.dataset.screen||'';

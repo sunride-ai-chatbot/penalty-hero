@@ -41,8 +41,7 @@ export async function runDuel({arena,audio,sides,me,first,net=null,hud,signal,ti
     arena.hint('');arena.roleOff();arena.info({dive:result.keeper.dir,how:`${result.how} x${result.x} y${result.y} p${result.power}`});
     const settle=()=>{if(!recordKick(duel,turn.k,result.out))return;            // once: a second callback, a replayed frame or a repeated message changes nothing
       const word=resultWord(result.how,iKick,result.catch,callBag);hud.marks(duel);arena.flash(word.text,word.good);arena.cheer(word.good?1:.3);
-      if(result.how==='goal')audio?.goal(iKick);else if(result.how==='save')audio?.save(result.catch);else if(result.how==='post')audio?.post();else audio?.miss(overTheBar(result));
-      try{navigator.vibrate&&navigator.vibrate(word.good?[18,40,18]:28)}catch(e){}};
+      if(result.how==='goal')audio?.goal(iKick);else if(result.how==='save')audio?.save(result.catch);else if(result.how==='post')audio?.post();else audio?.miss(overTheBar(result));};
     await arena.play(result,{onContact:()=>audio?.kick(result.power),onResult:settle,signal,decisive:ends});settle();
     if(ends&&!signal?.aborted)await arena.replay(result,{signal});
     if(ends&&!signal?.aborted)await arena.celebrate({signal,goal:result.how==='goal'});

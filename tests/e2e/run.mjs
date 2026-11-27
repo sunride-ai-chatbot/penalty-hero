@@ -179,5 +179,29 @@ await step('after a game the new medals are told: survival ends at once, the pan
   for(let i=0;i<40;i++){const st=await p.evaluate(()=>({end:!!document.querySelector('#panel')&&!document.querySelector('#panel').hidden,k:!!(window.__ph&&window.__ph.arena&&window.__ph.arena._kick)}));if(st.end)break;await p.evaluate(k=>{const a=window.__ph&&window.__ph.arena;if(!a)return;if(k)a._kick(5.5,3,.73);else if(a._dive)a._dive('L')},st.k);await p.waitForTimeout(250)}
   await p.waitForSelector('#panel .end');assert.equal(await p.$('#panel .unlock'),null,'a medal is told once');await ctx.close()});
 
+await step('settings: ⚙️ opens the screen, each switch and level is kept, the quality reaches the 3D scene, the loading shows its progress',async()=>{const ctx=await phone();
+  const p=await page(ctx);await p.goto(BASE+'?debug');await p.waitForSelector('#playerName');
+  await p.click('[data-mode=settings]');await p.waitForSelector('#app[data-screen=settings]');
+  assert.equal((await p.$$('.sw')).length,4);assert.deepEqual(await p.$$eval('.sw',b=>b.map(x=>x.getAttribute('aria-checked'))),['true','true','true','true']);
+  assert.match(await p.textContent('.note'),/אוטומטי.*מלאה/);
+  await p.click('.sw[data-key=voice]');await p.click('.sw[data-key=crowd]');await p.click('.chip[data-vol="1.4"]');await p.click('.chip[data-q=low]');
+  assert.deepEqual(await p.$$eval('.sw',b=>b.map(x=>x.getAttribute('aria-checked'))),['false','true','false','true']);assert.match(await p.textContent('.note'),/חסכונית/);
+  assert.deepEqual(JSON.parse(await p.evaluate(()=>localStorage.getItem('ph.settings'))),{quality:'low',voice:false,sfx:true,crowd:false,vol:1.4,haptics:true});
+  await p.reload();await p.waitForSelector('#playerName');await p.click('[data-mode=settings]');
+  assert.deepEqual(await p.$$eval('.sw',b=>b.map(x=>x.getAttribute('aria-checked'))),['false','true','false','true'],'kept after a reload');assert.equal(await p.$eval('.chip[data-q=low]',b=>b.getAttribute('aria-pressed')),'true');
+  await p.click('[data-back]');await p.waitForSelector('#playerName');
+  await p.fill('#playerName','דני');await p.click('button[data-mode=cpu]');await pickClub(p,'fr',null,'e:psg');await p.click('#choose');await pickClub(p,'il','il1','il:mta');await p.click('#go');
+  await p.waitForSelector('.ar-load .ld');
+  await p.waitForFunction(()=>window.__ph&&window.__ph.arena.stage&&document.querySelector('.ar-load').hidden,null,{timeout:120000});
+  const d=await p.evaluate(()=>window.__ph.arena.stage.debug());assert.equal(d.quality,2,'the light level reaches the scene');assert.equal(d.party,false,'the celebration film waits until the first kick is ready');
+  await p.waitForFunction(()=>window.__ph.arena.stage.debug().party,null,{timeout:30000});
+  await p.click('#quit');await p.click('#leave');await p.waitForSelector('#playerName');
+  // the best level and an adaptive start: "auto" starts where the last session ended up, and "high" ignores it
+  await p.evaluate(()=>{localStorage.setItem('ph.settings',JSON.stringify({quality:'auto'}));localStorage.setItem('ph.qAuto','1')});await p.reload();await p.waitForSelector('#playerName');
+  await p.fill('#playerName','דני');await p.click('button[data-mode=cpu]');await pickClub(p,'fr',null,'e:psg');await p.click('#choose');await pickClub(p,'il','il1','il:mta');await p.click('#go');
+  await p.waitForFunction(()=>window.__ph&&window.__ph.arena.stage&&document.querySelector('.ar-load').hidden,null,{timeout:120000});
+  assert.equal(await p.evaluate(()=>window.__ph.arena.stage.debug().quality),1,'auto starts at the level of the last session');
+  await p.click('#quit');await p.click('#leave');await p.waitForSelector('#playerName');await ctx.close()});
+
 await browser.close();srv.close();
 const unique=[...new Set(problems)];console.log(`\n${passed} passed, ${unique.length} problems`);for(const x of unique)console.log(' - '+x);process.exit(unique.length?1:0);

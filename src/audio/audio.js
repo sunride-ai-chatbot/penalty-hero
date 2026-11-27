@@ -6,12 +6,12 @@
 const FILES=['bed','goal','chance','song','call1','call2','call3','call-save','call-miss','call-end','sfx-whistle','sfx-kick','sfx-net','sfx-post','sfx-glove'];
 const LEVEL=.62,BED=.34;   // everything sits quietly: the game is played on a phone held close to the ear
 const fileOf=name=>name.startsWith('sfx-')?name:'crowd-'+name;
-export function createAudio({base,storage=globalThis.localStorage}={}){
-  let ctx=null,master=null,buffers={},loading=null,loaded=false,goals=0,lastSaid='',speakUntil=0,finaleAt=-99,bed=null,muted=false,live=new Set(),unlocked=false;
+export function createAudio({base,storage=globalThis.localStorage,haptics=null}={}){
+  let ctx=null,master=null,buffers={},loading=null,loaded=false,goals=0,lastSaid='',speakUntil=0,finaleAt=-99,bed=null,muted=false,live=new Set(),unlocked=false,opts={voice:true,sfx:true,crowd:true,vol:1};
   try{muted=storage?.getItem('ph.muted')==='1'}catch(e){}
   const ext=()=>{try{const a=document.createElement('audio');return a.canPlayType('audio/ogg; codecs="opus"')?'opus':'m4a'}catch(e){return 'm4a'}};
   function ensure(){if(ctx)return ctx;const AC=globalThis.AudioContext||globalThis.webkitAudioContext;if(!AC)return null;
-    ctx=new AC();master=ctx.createGain();master.gain.value=muted?0:LEVEL;
+    ctx=new AC();master=ctx.createGain();master.gain.value=muted?0:LEVEL*opts.vol;
     const comp=ctx.createDynamicsCompressor();comp.threshold.value=-16;comp.knee.value=12;comp.ratio.value=3.5;comp.attack.value=.004;comp.release.value=.22;   // the whistle, the boot and the roar sit in one mix, and never clip
     const soft=ctx.createBiquadFilter();soft.type='lowpass';soft.frequency.value=6200;soft.Q.value=.45;      // takes the edge off the recordings and the effects alike
     const shelf=ctx.createBiquadFilter();shelf.type='highshelf';shelf.frequency.value=3200;shelf.gain.value=-5;
@@ -28,35 +28,43 @@ export function createAudio({base,storage=globalThis.localStorage}={}){
   function noise(dur,{gain=.2,freq=900,q=.7}={}){if(!ctx)return;const n=Math.floor(ctx.sampleRate*dur),b=ctx.createBuffer(1,n,ctx.sampleRate),d=b.getChannelData(0);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*(1-i/n);
     const s=ctx.createBufferSource(),f=ctx.createBiquadFilter(),g=ctx.createGain();s.buffer=b;f.type='bandpass';f.frequency.value=freq;f.Q.value=q;g.gain.value=gain;s.connect(f).connect(g).connect(master);s.start();s.onended=()=>{try{s.disconnect();f.disconnect();g.disconnect()}catch(e){}}}
   /** a recorded call: only when nobody is talking and it is not the one just heard; the crowd goes down for as long as he speaks */
-  function say(name,{gain=1,delay=.3}={}){const b=buffers[name];if(!ctx||!b||ctx.currentTime<speakUntil||name===lastSaid)return false;if(!play(name,{gain,delay}))return false;
+  function say(name,{gain=1,delay=.3}={}){const b=buffers[name];if(!ctx||!opts.voice||!b||ctx.currentTime<speakUntil||name===lastSaid)return false;if(!play(name,{gain,delay}))return false;
     lastSaid=name;speakUntil=ctx.currentTime+delay+b.duration;api.duck(.3,delay+b.duration,1.6);return true}
   const api={get muted(){return muted},get ready(){return !!ctx&&ctx.state==='running'},get playing(){return live.size},
     /** call from a tap: opens the context (iOS needs the gesture) and starts loading the recordings */
     unlock(){if(!ensure())return;if(ctx.state==='suspended')ctx.resume().catch(()=>{});if(!unlocked){unlocked=true;load().then(()=>{if(api.wantBed&&!bed)api.bedOn()})}},
-    setMuted(v){muted=!!v;try{storage?.setItem('ph.muted',muted?'1':'0')}catch(e){}if(master&&ctx)master.gain.setTargetAtTime(muted?0:LEVEL,ctx.currentTime,.03)},
+    setMuted(v){muted=!!v;try{storage?.setItem('ph.muted',muted?'1':'0')}catch(e){}if(master&&ctx)master.gain.setTargetAtTime(muted?0:LEVEL*opts.vol,ctx.currentTime,.03)},
+    /** from the settings: which of the three voices of the game are on (commentator, effects, crowd) and how loud everything is */
+    configure(o={}){for(const k of ['voice','sfx','crowd'])if(typeof o[k]==='boolean')opts[k]=o[k];if(typeof o.vol==='number'&&o.vol>0)opts.vol=o.vol;haptics?.configure?.(o);
+      if(master&&ctx)master.gain.setTargetAtTime(muted?0:LEVEL*opts.vol,ctx.currentTime,.03);if(!opts.crowd){if(bed){stopNode(bed,.4);bed=null}}else if(api.wantBed&&!bed&&ctx&&buffers.bed)bed=play('bed',{gain:BED,loop:true,fade:1.6})},
+    get opts(){return {...opts}},
+    /** a buzz that belongs to no sound (the cup starting), through the same on/off switch as the rest */
+    buzz(name){return haptics?.[name]?.()},
+    /** a taste of one voice, for the settings screen (the commentator is not held back by the usual one-call-at-a-time rule) */
+    preview(kind){if(kind==='voice')play('call3',{gain:.9,delay:.1});else if(kind==='sfx'){play('sfx-whistle',{gain:.4});play('sfx-kick',{gain:.9,delay:.5});play('sfx-net',{gain:1,delay:.7})}else if(kind==='crowd')play('chance',{gain:.5,fade:.1})},
     wantBed:false,
-    bedOn(){api.wantBed=true;if(!bed){goals=0;lastSaid='';speakUntil=0;finaleAt=-99}if(bed||!ctx||!buffers.bed)return;bed=play('bed',{gain:BED,loop:true,fade:1.6})},
+    bedOn(){api.wantBed=true;if(!bed){goals=0;lastSaid='';speakUntil=0;finaleAt=-99}if(bed||!ctx||!buffers.bed||!opts.crowd)return;bed=play('bed',{gain:BED,loop:true,fade:1.6})},
     bedOff(){api.wantBed=false;if(bed){stopNode(bed,.5);bed=null}},
     /** the crowd gets quieter for a moment so that the roar, the whistle or the clang can be heard, then comes back */
     duck(to=.45,hold=2.2,back=1.6){if(!bed||!ctx)return;const g=bed.g.gain,t=ctx.currentTime;try{g.cancelScheduledValues(t);g.setValueAtTime(g.value,t);g.linearRampToValueAtTime(BED*to,t+.2);g.setValueAtTime(BED*to,t+hold);g.linearRampToValueAtTime(BED,t+hold+back)}catch(e){}},
     /** the referee's whistle before every kick: short, soft, and the crowd is not touched */
-    whistle(){if(play('sfx-whistle',{gain:.4}))return;if(loaded)tone(2400,.22,{gain:.02})},
-    kick(power=73){const p=Math.max(30,Math.min(100,power))/100;if(play('sfx-kick',{gain:.6+.4*p,rate:.92+.16*p}))return;if(loaded){tone(150,.11,{gain:.22+.25*p,to:55});noise(.06,{gain:.10+.18*p,freq:1800})}},
+    whistle(){if(!opts.sfx)return;if(play('sfx-whistle',{gain:.4}))return;if(loaded)tone(2400,.22,{gain:.02})},
+    kick(power=73){if(!opts.sfx)return;const p=Math.max(30,Math.min(100,power))/100;if(play('sfx-kick',{gain:.6+.4*p,rate:.92+.16*p}))return;if(loaded){tone(150,.11,{gain:.22+.25*p,to:55});noise(.06,{gain:.10+.18*p,freq:1800})}},
     /** a goal: the net, then the commentator (the first goal of a duel always, later ones most of the time, never the same call twice in a row);
         his recording has its own roar, so the crowd's goal burst plays only when he does not */
-    goal(mine){if(!play('sfx-net',{gain:1})&&loaded)noise(.25,{gain:.05,freq:5200,q:.4});
+    goal(mine){haptics?.goal?.(mine);if(opts.sfx&&!play('sfx-net',{gain:1})&&loaded)noise(.25,{gain:.05,freq:5200,q:.4});
       const names=['call1','call2','call3'].filter(n=>buffers[n]&&n!==lastSaid);
-      if(!(names.length&&(goals===0||Math.random()<.7)&&say(names[Math.floor(Math.random()*names.length)],{gain:mine?1:.8}))){play('goal',{gain:mine?.6:.32,delay:.05,fade:.12});api.duck(.35,mine?3.4:2.6,1.8)}
+      if(!(names.length&&(goals===0||Math.random()<.7)&&say(names[Math.floor(Math.random()*names.length)],{gain:mine?1:.8}))){if(opts.crowd){play('goal',{gain:mine?.6:.32,delay:.05,fade:.12});api.duck(.35,mine?3.4:2.6,1.8)}}
       goals++},
     /** a miss: when the ball went over the bar the commentator says so (about every other time); otherwise only the crowd's gasp */
-    miss(over=false){if(over&&Math.random()<.55&&say('call-miss',{gain:.9}))return;play('chance',{gain:.5,fade:.1});api.duck(.55,1.6,1.4)},
-    save(caught){if(!play('sfx-glove',{gain:caught?1:.8,rate:caught?.92:1.1})&&loaded){tone(190,.09,{gain:.3,to:90});noise(.08,{gain:.22,freq:caught?700:1300})}
-      if(Math.random()<.55&&say('call-save',{gain:.9,delay:.45}))return;play('chance',{gain:.38,delay:.08,fade:.1});api.duck(.5,1.6,1.4)},
-    post(){if(!play('sfx-post',{gain:1})&&loaded){tone(980,.22,{type:'triangle',gain:.3,to:720});tone(1630,.16,{type:'sine',gain:.12})}play('chance',{gain:.42,delay:.05,fade:.1});api.duck(.5,1.5,1.4)},
+    miss(over=false){haptics?.miss?.();if(over&&Math.random()<.55&&say('call-miss',{gain:.9}))return;if(!opts.crowd)return;play('chance',{gain:.5,fade:.1});api.duck(.55,1.6,1.4)},
+    save(caught){haptics?.save?.();if(opts.sfx&&!play('sfx-glove',{gain:caught?1:.8,rate:caught?.92:1.1})&&loaded){tone(190,.09,{gain:.3,to:90});noise(.08,{gain:.22,freq:caught?700:1300})}
+      if(Math.random()<.55&&say('call-save',{gain:.9,delay:.45}))return;if(!opts.crowd)return;play('chance',{gain:.38,delay:.08,fade:.1});api.duck(.5,1.6,1.4)},
+    post(){haptics?.post?.();if(opts.sfx&&!play('sfx-post',{gain:1})&&loaded){tone(980,.22,{type:'triangle',gain:.3,to:720});tone(1630,.16,{type:'sine',gain:.12})}if(!opts.crowd)return;play('chance',{gain:.42,delay:.05,fade:.1});api.duck(.5,1.5,1.4)},
     /** the last kick of the duel is over: "that's it, what a shoot-out", with the stadium roaring at the end */
     finale(){const t=ctx?ctx.currentTime+.6:0;if(say('call-end',{gain:.9,delay:.6}))finaleAt=t},
     /** the crowd sings for the winner; if the commentator is closing the duel it waits until he has said his piece */
-    win(){const wait=ctx?Math.min(6,Math.max(0,finaleAt+5.6-ctx.currentTime)):0;play('song',{gain:.5,fade:.6,delay:wait})},
+    win(){haptics?.win?.();if(!opts.crowd)return;const wait=ctx?Math.min(6,Math.max(0,finaleAt+5.6-ctx.currentTime)):0;play('song',{gain:.5,fade:.6,delay:wait})},
     tap(){tone(660,.04,{gain:.05})},
     /** everything off: the duel was left */
     stopAll(){api.wantBed=false;bed=null;for(const n of [...live])stopNode(n,.2)},

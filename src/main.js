@@ -1,8 +1,10 @@
 import {VERSION} from './version.js';
 import {createAudio} from './audio/audio.js';
 import {startApp} from './ui/app.js';
-const audio=createAudio({base:new URL('../assets/audio/',import.meta.url)});
-const app=startApp(document.getElementById('app'),{audio});
+import {createHaptics} from './core/settings.js';
+const haptics=createHaptics();
+const audio=createAudio({base:new URL('../assets/audio/',import.meta.url),haptics});
+const app=startApp(document.getElementById('app'),{audio,haptics});
 window.addEventListener('error',e=>console.error('Penalty Hero',e.message));
 window.addEventListener('unhandledrejection',e=>{if(e.reason&&e.reason.name==='AbortError')e.preventDefault()});
 /* keep the page itself still: no pull-to-refresh or pinch behind the game (text fields keep their own gestures) */

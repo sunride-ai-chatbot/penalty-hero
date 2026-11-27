@@ -13,6 +13,8 @@ import {createRoom,MSG} from '../net/protocol.js';
 import {loadTransport,newRoomCode,cleanCode} from '../net/transport.js';
 import {cupFeature} from './cup-ui.js';
 import {cabinetFeature} from './cabinet-ui.js';
+import {drawCup,settleRound,opponentOf,roundName,ROUNDS} from '../core/bracket.js';
+import {treeHtml} from './tree-ui.js';
 
 const ASSET=p=>new URL('../../assets/'+p,import.meta.url).href;
 const store={get(k,d=''){try{return localStorage.getItem('ph.'+k)??d}catch(e){return d}},set(k,v){try{localStorage.setItem('ph.'+k,v)}catch(e){}}};
@@ -130,7 +132,6 @@ export function startApp(root,{audio}){
 
 
   /* ---------- more ways to play: cup, survival, the daily challenge, my numbers ---------- */
-  const ROUNDS=['רבע גמר','חצי גמר','גמר'];
   const pct=(a,b)=>b?Math.round(a/b*100)+'%':'—';
   function statsScreen(){const st=S.stats,D=st.daily;
     const row=(k,v)=>`<div class="stat"><span>${k}</span><b>${v}</b></div>`;
@@ -142,23 +143,29 @@ export function startApp(root,{audio}){
       <button type="button" class="link" id="reset">איפוס הסטטיסטיקה</button></main>`,el=>{el.querySelector('[data-back]').onclick=intro;
       el.querySelector('#reset').onclick=()=>{const b=el.querySelector('#reset');if(b.dataset.sure){S.stats=parseStats(null);saveStats();cab.reset();statsScreen()}else{b.dataset.sure='1';b.textContent='ללחוץ שוב כדי למחוק הכול';}}})}
   /* a cup: quarter-final, semi-final, final. Win the shoot-out to go on, lose and you are out. */
-  function drawOpponents(myId){const my=clubById(myId),all=Object.values(getCatalog().clubs).filter(c=>c.id!==myId),used=new Set();
-    const pick=t=>{const c=all.filter(x=>!used.has(x.id)).sort((a,b)=>Math.abs(a.str-t)-Math.abs(b.str-t)).slice(0,4);const o=c[Math.floor(Math.random()*c.length)];used.add(o.id);return o.id};
-    return [pick(my.str-6),pick(my.str+2),pick(my.str+9)]}
-  function tournament(T){const my=clubById(S.my);if(!my)return pickMine();T=T||{round:0,opps:drawOpponents(S.my)};S.mode='tour';
-    const path=ROUNDS.map((r,i)=>{const c=clubById(T.opps[i]);return `<li class="${i<T.round?'done':i===T.round?'now':''}"><b>${r}</b><span>${esc(c.name)}</span><bdi>${c.str}</bdi></li>`}).join('');
-    const op=clubById(T.opps[T.round]);
-    show('cup',top('טורניר',true,ROUNDS[T.round])+`<main class="body center"><ol class="path">${path}</ol><div class="versus one"><div>${crestOf(my)}<strong>${esc(my.name)}</strong></div><b class="vs">נגד</b><div>${crestOf(op)}<strong>${esc(op.name)}</strong></div></div>
-      <div class="card"><label for="playerName4">שם השחקן</label><input id="playerName4" type="text" maxlength="24" value="${esc(S.name)}" enterkeyhint="done" spellcheck="false"><button type="button" class="btn big" id="go">לנקודה הלבנה</button><p class="note">מנצחים בדו־קרב מעפילים לשלב הבא. מפסידים: הטורניר נגמר.</p></div></main>`,el=>{
-      el.querySelector('[data-back]').onclick=intro;const input=el.querySelector('#playerName4');input.addEventListener('input',()=>setName(input.value));
-      el.querySelector('#go').onclick=async()=>{setName(input.value);const b=el.querySelector('#go');b.disabled=true;b.textContent='טוען…';let sa,sb;
+  /* the cup against the computer: sixteen clubs in a World-Cup tree, four wins from the round of 16 to the final. Nothing is shown in
+     advance: my own club, then my opponent when I ask for the draw, then the rest of a round after I have won it. */
+  function tournament(T){const my=clubById(S.my);if(!my)return pickMine();
+    if(!T){try{T=drawCup({my:{id:my.id,str:my.str},pool:Object.values(getCatalog().clubs).map(c=>({id:c.id,str:c.str}))})}catch(e){return retry('אין מספיק קבוצות לטורניר.',intro,intro)}}
+    S.mode='tour';if(debug){window.__tour=T;window.__tourShow=()=>tournament(T)}const rd=Math.min(T.round,ROUNDS-1),over=T.over,known=!over&&(T.round>0||T.peek),op=known?clubById(opponentOf(T,rd)):null,won=T.champion===T.my;
+    const {tree,results,champion}=treeHtml(T,{clubById});
+    show('cup',top('טורניר',true,over?(won?'אלופים!':'הטורניר הסתיים'):roundName(rd))+`<main class="body center">${tree}
+      ${over?`<p class="tree-next">${won?'זכית בגביע! 🏆':`האלופה: <strong>${esc(champion||'')}</strong>`}</p><button type="button" class="btn big" id="new">טורניר חדש</button><button type="button" class="btn ghost" id="home">יציאה</button>`
+        :`<p class="tree-next">${known?`היריבה: <strong>${esc(op.name)}</strong> <bdi>${op.str}</bdi>`:'את היריבה תגלה בהגרלה'}</p>
+          <div class="card"><label for="playerName4">שם השחקן</label><input id="playerName4" type="text" maxlength="24" value="${esc(S.name)}" enterkeyhint="done" spellcheck="false"><button type="button" class="btn big" id="go">${known?'לנקודה הלבנה':'הגרל את היריבה'}</button><p class="note">מנצחים בדו־קרב מעפילים לשלב הבא. מפסידים: הטורניר נגמר. אחרי כל ניצחון נחשפות התוצאות של שאר המשחקים.</p></div>`}
+      ${results?`<div class="card rounds">${results}</div>`:''}</main>`,el=>{
+      el.querySelector('[data-back]').onclick=intro;if(over){el.querySelector('#new').onclick=()=>tournament();el.querySelector('#home').onclick=intro;return}
+      const input=el.querySelector('#playerName4');input.addEventListener('input',()=>setName(input.value));
+      el.querySelector('#go').onclick=async()=>{setName(input.value);if(!known){T.peek=true;return tournament(T)}
+        const b=el.querySelector('#go');b.disabled=true;b.textContent='טוען…';let sa,sb;
         try{[sa,sb]=await Promise.all([loadSquad(my.id),loadSquad(op.id)])}catch(e){b.disabled=false;b.textContent='לנקודה הלבנה';return toast('לא הצלחנו לטעון את הסגלים. בדקו את החיבור.')}if(screen!=='cup')return;
         const A=buildSide(my,sa,{participant:nameOrDefault()}),B=buildSide(op,sb,{twin:op.id===my.id,participant:'המחשב'});
         game({sides:{a:A,b:B},me:'a',first:Math.random()<.5?'a':'b',exit:intro,custom:{end(res,p,done){
-          const last=T.round===2;if(res.won&&!last)return {good:true,title:'עלית לשלב הבא!',lines:[`${ROUNDS[T.round]}: ${res.score.a}:${res.score.b}`,`הבא: ${ROUNDS[T.round+1]} נגד ${esc(clubById(T.opps[T.round+1]).name)}`],buttons:[['next','לשלב הבא',()=>tournament({...T,round:T.round+1})],['home','יציאה',intro,'ghost']]};
-          recordTournament(S.stats,res.won?3:T.round);saveStats();
-          return res.won?{good:true,title:'אלופים! זכית בטורניר',lines:['שלושה דו־קרבים, שלושה ניצחונות'],buttons:[['again','טורניר חדש',()=>tournament()],['home','יציאה',intro,'ghost']]}
-            :{good:false,title:'הודחת ב'+ROUNDS[T.round],lines:[`${res.score.a}:${res.score.b} נגד ${esc(op.name)}`],buttons:[['again','טורניר חדש',()=>tournament()],['home','יציאה',intro,'ghost']]}}}})}})}
+          settleRound(T,rd,{won:res.won,mine:res.score.a,theirs:res.score.b});
+          if(res.won&&!T.over)return {good:true,title:'עלית ל'+roundName(T.round)+'!',lines:[`${roundName(rd)}: ${res.score.a}:${res.score.b}`,'התוצאות של שאר המשחקים נחשפו בעץ'],buttons:[['next','לעץ הטורניר',()=>tournament(T)],['home','יציאה',intro,'ghost']]};
+          recordTournament(S.stats,res.won?ROUNDS:rd);saveStats();
+          return res.won?{good:true,title:'אלופים! זכית בגביע',lines:['ארבעה ניצחונות: מהשמינית ועד הגמר'],buttons:[['tree','לעץ המלא',()=>tournament(T)],['again','טורניר חדש',()=>tournament()],['home','יציאה',intro,'ghost']]}
+            :{good:false,title:'הודחת ב'+roundName(rd),lines:[`${res.score.a}:${res.score.b} נגד ${esc(op.name)}`],buttons:[['tree','לראות את העץ המלא',()=>tournament(T)],['again','טורניר חדש',()=>tournament()],['home','יציאה',intro,'ghost']]}}}})}})}
   /* survival: one kick after another until the first miss; the keeper improves with every goal */
   async function survival(){const my=clubById(S.my);if(!my)return pickMine();S.mode='surv';
     show('surv',top('הישרדות',true)+`<main class="body center"><div class="vs-one">${crestOf(my)}<strong>${esc(my.name)}</strong></div>

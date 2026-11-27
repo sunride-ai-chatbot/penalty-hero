@@ -14,8 +14,8 @@ export function recordDuel(st,{won,conceded=1}){st.played++;st.goalRun=0;if(won)
 export function recordSurvival(st,goals){st.survRuns++;st.goalRun=0;const record=goals>st.survBest;st.survBest=Math.max(st.survBest,goals);return record}
 /** a knockout league (the friends' cup) came to its end; won: I am the champion */
 export function recordCup(st,won){st.cupPlayed++;if(won)st.cupWins++;return st}
-/** rounds: how many shoot-outs were won (0..3); a cup is won at 3 */
-export function recordTournament(st,rounds){st.tourPlayed++;st.tourBest=Math.max(st.tourBest,rounds);if(rounds>=3)st.tourWins++;return st}
+/** rounds: how many shoot-outs were won (0..4); the cup (round of 16 to the final) is won at 4 */
+export function recordTournament(st,rounds){st.tourPlayed++;st.tourBest=Math.max(st.tourBest,rounds);if(rounds>=4)st.tourWins++;return st}
 export const dayKey=(d=new Date())=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 export function dayBefore(key){const [y,m,d]=key.split('-').map(Number);return dayKey(new Date(y,m-1,d-1))}
 /** Only the first try of a day counts. Returns true when this one was counted. */

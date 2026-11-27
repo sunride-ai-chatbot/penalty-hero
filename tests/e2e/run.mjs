@@ -141,11 +141,17 @@ await step('more ways to play: the chips, my numbers, survival ends on the first
   assert.match(await p.textContent('#panel'),/[🟩⬛]{5}/u);await p.click('[data-act=home]');await p.waitForSelector('#playerName');
   await p.click('.chip[data-mode=daily]');await p.waitForSelector('#app[data-screen=daily]');assert.match(await p.textContent('#go'),/תרגול/);assert.match(await p.textContent('.card'),/היום קיבלת/);await p.click('[data-back]');
   // the cup: three rows, the first round is a real shoot-out
-  await p.click('.chip[data-mode=tour]');await p.waitForSelector('#app[data-screen=pick]');await pickClub(p,'il','il1','il:mta');await p.waitForSelector('#app[data-screen=cup]');assert.equal((await p.$$('.path li')).length,3);assert.equal(await p.$$eval('.path li.now',e=>e.length),1);
+  await p.click('.chip[data-mode=tour]');await p.waitForSelector('#app[data-screen=pick]');await pickClub(p,'il','il1','il:mta');await p.waitForSelector('#app[data-screen=cup]');
+  assert.equal((await p.$$('.tree .tn')).length,30,'sixteen clubs, then the winners of 8, 4 and 2 matches');assert.equal((await p.$$('.tree .tn.on')).length,1,'only my own club is shown before the draw');assert.equal((await p.$$('.tree .tn.q')).length,29);assert.equal((await p.$$('.tree .tn.me')).length,1);
+  assert.match(await p.textContent('.top p'),/שמינית גמר/);assert.equal(await p.textContent('#go'),'הגרל את היריבה');await p.click('#go');await p.waitForSelector('.tn.opp');
+  assert.equal((await p.$$('.tree .tn.on')).length,2,'the draw shows my opponent and nobody else');assert.equal(await p.textContent('#go'),'לנקודה הלבנה');assert.equal((await p.$$('.rround')).length,0,'no results before the first duel');
   await p.click('#go');   // every ball of mine goes wide: he is out after a handful of kicks, which keeps the test short
   for(let guard=0;guard<40;guard++){await p.waitForFunction(()=>window.__ph&&(window.__ph.arena._kick||window.__ph.arena._dive||!document.querySelector('#panel').hidden),null,{timeout:90000});
     const st1=await p.evaluate(()=>({end:!document.querySelector('#panel').hidden,k:!!window.__ph.arena._kick}));if(st1.end)break;await p.evaluate(k=>{const a=window.__ph.arena;if(k)a._kick(5.5,3,.73);else a._dive('L')},st1.k);await p.waitForTimeout(250)}
-  const end=(await state(p)).end;assert.match(end,/עלית לשלב הבא|הודחת ב/);st=await stats();assert.equal(st.played,1);assert.ok(st.shots>=5);await ctx.close()});
+  const end=(await state(p)).end;assert.match(end,/עלית ל|הודחת ב/);st=await stats();assert.equal(st.played,1);assert.ok(st.shots>=5);
+  if(/הודחת ב/.test(end)){await p.click('#panel [data-act=tree]');await p.waitForSelector('#app[data-screen=cup] .tree');assert.equal((await p.$$('.tree .tn.on')).length,31,'all thirty clubs and the champion show once the cup is over');assert.equal((await p.$$('.rround')).length,4);assert.match(await p.textContent('.tree-next'),/האלופה/);assert.equal(await p.$('#go'),null)}
+  else{await p.click('#panel [data-act=next]');await p.waitForSelector('#app[data-screen=cup] .tree');assert.ok((await p.$$('.tree .tn.on')).length>=17,'a won round shows all sixteen clubs');assert.equal((await p.$$('.rround')).length,1)}
+  await ctx.close()});
 
 await step('the trophy cabinet: locked and open prizes, a choice that is kept, a new stadium and ball in the scene, the medals told at the end',async()=>{const ctx=await phone();
   await ctx.addInitScript(()=>{if(!localStorage.getItem('ph.stats'))localStorage.setItem('ph.stats',JSON.stringify({v:1,played:12,wins:10}))});const p=await page(ctx);await p.goto(BASE+'?debug');await p.waitForSelector('#playerName');

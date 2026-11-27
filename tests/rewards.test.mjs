@@ -21,4 +21,4 @@ test('stats: a run of goals, a shutout, a cup, the best daily streak; and old sa
   recordDaily(s,'2026-01-01',3);recordDaily(s,'2026-01-02',4);recordDaily(s,'2026-01-03',5);recordDaily(s,'2026-01-09',2);assert.equal(s.daily.streak,1);assert.equal(s.daily.bestStreak,3);
   const old=parseStats(JSON.stringify({v:1,played:4,wins:2,daily:{last:'2026-01-01',streak:2,best:3,total:5,scores:{'2026-01-01':3}}}));assert.equal(old.wins,2);assert.equal(old.cupWins,0);assert.equal(old.daily.bestStreak,0);
   const m=Object.fromEntries(medalsOf(old).map(x=>[x.id,x]));assert.equal(m.daily3.value,2,'the old current streak counts until a best streak is kept');
-  const st=emptyStats();recordSurvival(st,6);recordTournament(st,3);const mm=Object.fromEntries(medalsOf(st).map(x=>[x.id,x]));assert.ok(mm.surv5.done&&!mm.surv10.done&&mm.champion.done)});
+  const st=emptyStats();recordSurvival(st,6);recordTournament(st,4);const mm=Object.fromEntries(medalsOf(st).map(x=>[x.id,x]));assert.ok(mm.surv5.done&&!mm.surv10.done&&mm.champion.done)});

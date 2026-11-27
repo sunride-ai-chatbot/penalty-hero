@@ -3,22 +3,23 @@
 // goes through the same resolveKick() as the duel.
 import {resolveKick,aiDive,makeRng,resultWord,overTheBar,makeCallBag,clamp,leftFooted,moodOf} from '../core/rules.js';
 import {kitsFor,shirtName} from '../data/catalog.js';
+import {SESSION,KEEPER_STAYS,pickTargets,scoreKick,summarize} from '../core/practice.js';
 const sleep=(ms,signal)=>new Promise((res,rej)=>{if(signal?.aborted)return rej(Object.assign(new Error('aborted'),{name:'AbortError'}));const t=setTimeout(()=>{signal?.removeEventListener('abort',stop);res()},ms);const stop=()=>{clearTimeout(t);rej(Object.assign(new Error('aborted'),{name:'AbortError'}))};signal?.addEventListener('abort',stop,{once:true})});
 const aborted=()=>Object.assign(new Error('aborted'),{name:'AbortError'});
 const callBag=makeCallBag();
 
 /** One kick of mine against the computer's keeper. Returns the resolved kick. `seed` and `diveRng` make it repeatable (the daily). */
-export async function soloKick({arena,audio,hud,T,G,taker,keeper,n,seed,diveRng,pressure=0,signal,timeKick=10000,fake}){
+export async function soloKick({arena,audio,hud,T,G,taker,keeper,n,seed,diveRng,pressure=0,signal,timeKick=10000,fake,dive=null,judge=null,hint='החזק, כוון ושחרר באזור הלבן. קשת באצבע מעקלת',onReady=null}){
   const kits=kitsFor(T,G);hud.turn({turn:{k:n,side:'a',keeperSide:'b',index:n,sudden:false},taker,keeper,iKick:true,duel:fake,takerSide:T,keeperSide:G});
   const ok=await arena.scene({...kits,name:shirtName(taker),number:taker.no,gkNumber:keeper.no,pid:taker.id,left:leftFooted(taker.id),mood:moodOf(T.club.id)});
   if(signal?.aborted)throw aborted();if(!ok)throw new Error('התמונה לא נטענה');
   arena.info({taker:`${taker.he} #${taker.no} (${taker.shot})`,dive:'',how:''});arena.pressure(pressure);audio?.whistle();
-  arena.role({iKick:true,keeperTag:`בשער: ${keeper.he}`});arena.hint('החזק, כוון ושחרר באזור הלבן. קשת באצבע מעקלת');
+  arena.role({iKick:true,keeperTag:`בשער: ${keeper.he}`});arena.hint(hint);onReady&&onReady();
   const c=await arena.askKick({shotSkill:taker.shot,keeperSkill:keeper.keep,pressure,timeMs:timeKick,signal});
   if(signal?.aborted)throw aborted();
-  const result=resolveKick({aim:c.aim,meter:c.meter,shotSkill:taker.shot,keeperSkill:keeper.keep,dive:aiDive(keeper.keep,diveRng),curl:c.curl||0,rng:makeRng(String(seed))});
+  const result=resolveKick({aim:c.aim,meter:c.meter,shotSkill:taker.shot,keeperSkill:keeper.keep,dive:dive||aiDive(keeper.keep,diveRng),curl:c.curl||0,rng:makeRng(String(seed))});
   arena.hint('');arena.roleOff();arena.pressure(0);arena.info({dive:result.keeper.dir,how:`${result.how} x${result.x} y${result.y} p${result.power}`});
-  let told=false;const settle=()=>{if(told)return;told=true;const word=resultWord(result.how,true,result.catch,callBag);arena.flash(word.text,word.good);arena.cheer(word.good?1:.3);
+  let told=false;const settle=()=>{if(told)return;told=true;const word=judge?judge(result):resultWord(result.how,true,result.catch,callBag);arena.flash(word.text,word.good);arena.cheer(word.good?1:.3);
     if(result.how==='goal')audio?.goal(true);else if(result.how==='save')audio?.save(result.catch);else if(result.how==='post')audio?.post();else audio?.miss(overTheBar(result));};
   await arena.play(result,{onContact:()=>audio?.kick(result.power),onResult:settle,signal});settle();return result}
 
@@ -41,3 +42,16 @@ export async function runDaily({arena,audio,sides,hud,signal,key}){
     hud.last&&hud.last({turn:{k:n},result:r,iKick:true});
     marks.push(r.out==='goal'?1:0);hud.solo({marks,best:0,label:'אתגר יומי',total:5});await sleep(n===4?500:800,signal)}
   return {goals:marks.reduce((t,v)=>t+v,0),marks}}
+
+/** Practice: ten kicks at a marked spot, the keeper standing in the middle. Each kick is told by how far the ball landed from the spot. */
+export async function runPractice({arena,audio,sides,hud,signal,seed=Math.floor(Math.random()*2**32).toString(16)}){
+  const A=sides.a,B=sides.b,targets=pickTargets('pr:'+seed),keeper={...B.keeper,keep:30},marks=[],scores=[];let points=0;
+  const show=()=>hud.solo({marks,best:0,label:'תרגול',total:SESSION,score:points,cap:SESSION*3});show();
+  for(let n=0;n<SESSION;n++){const taker=A.order[n%A.order.length],target=targets[n];let sc=null;
+    const r=await soloKick({arena,audio,hud,T:A,G:B,taker,keeper,n,seed:'pr:'+seed+':'+n,diveRng:makeRng('pr:'+seed+':d'),dive:KEEPER_STAYS,pressure:0,signal,fake:{kicks:{a:[],b:[]},log:[],winner:null,first:'a'},
+      hint:'מטרה: '+target.name+'. שחררו כשהסמן באזור הלבן',
+      onReady:()=>arena.mark(target),
+      judge:res=>{sc=scoreKick(target,res);arena.markHit(res.x,res.y,sc.grade);return {text:sc.grade==='far'?`רחוק · ${sc.cm} ס״מ`:`${sc.text} · ${sc.cm} ס״מ`,good:sc.points>=2}}});
+    sc=sc||scoreKick(target,r);scores.push(sc);points+=sc.points;marks.push(sc.points>=2?1:sc.points===1?2:0);show();
+    await sleep(n===SESSION-1?700:1100,signal);arena.markOff()}
+  return {scores,...summarize(scores),goals:scores.filter(s=>s.points>=2).length,marks}}

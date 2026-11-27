@@ -5,8 +5,8 @@ import {loadCatalog,getCatalog,clubById,loadSquad,buildSide,similarOpponent,leag
 import {inkFor} from './crest.js';
 import {marksOf,scoreOf} from '../core/duel.js';
 import {RULES_VERSION,makeRng} from '../core/rules.js';
-import {parseStats,recordKick,recordDuel,recordSurvival,recordTournament,recordDaily,recordCup,dayKey} from '../core/stats.js';
-import {runSurvival,runDaily} from '../game/solo.js';
+import {parseStats,recordKick,recordDuel,recordSurvival,recordPractice,recordTournament,recordDaily,recordCup,dayKey} from '../core/stats.js';
+import {runSurvival,runDaily,runPractice} from '../game/solo.js';
 import {createArena} from '../game/arena.js';
 import {runDuel} from '../game/match.js';
 import {createRoom,MSG} from '../net/protocol.js';
@@ -15,6 +15,7 @@ import {cupFeature} from './cup-ui.js';
 import {cabinetFeature} from './cabinet-ui.js';
 import {settingsFeature} from './settings-ui.js';
 import {qualityLevel} from '../core/settings.js';
+import {verdict,MAX_POINTS,SESSION} from '../core/practice.js';
 import {drawCup,settleRound,opponentOf,roundName,ROUNDS} from '../core/bracket.js';
 import {treeHtml} from './tree-ui.js';
 
@@ -52,7 +53,7 @@ export function startApp(root,{audio,haptics=null}){
         ${S.cupInvite?`<button type="submit" class="btn big" data-mode="cupjoin">הצטרף לליגת הנוקאאוט</button><button type="button" class="btn ghost" data-mode="cpu">מול המחשב</button>`:S.invite?`<button type="submit" class="btn big" data-mode="net">הצטרף לדו־קרב</button><button type="button" class="btn ghost" data-mode="cpu">מול המחשב</button>`
           :`<button type="submit" class="btn big" data-mode="cpu">מול המחשב</button><button type="button" class="btn big alt" data-mode="net">מול חבר ברשת</button>`}
 
-      </form><div class="more" role="group" aria-label="עוד מצבים"><button type="button" class="chip hot" data-mode="cup">ליגת נוקאאוט</button><button type="button" class="chip" data-mode="king">👑 מלך הפנדלים</button><button type="button" class="chip" data-mode="tour">גביע מול המחשב</button><button type="button" class="chip" data-mode="surv">הישרדות</button><button type="button" class="chip" data-mode="daily">אתגר יומי</button><button type="button" class="chip" data-mode="cabinet">🏆 ארון גביעים</button><button type="button" class="chip" data-mode="stats">הסטטיסטיקה שלי</button></div><footer class="intro-foot"><button type="button" class="icon mute" data-mute aria-label="השתקה" aria-pressed="${audio.muted}">${audio.muted?'🔇':'🔊'}</button><button type="button" class="icon" data-mode="settings" aria-label="הגדרות">⚙️</button><span>Penalty Hero · גרסה <bdi dir="ltr">${VERSION}</bdi></span></footer></div>`,
+      </form><div class="more" role="group" aria-label="עוד מצבים"><button type="button" class="chip hot" data-mode="cup">ליגת נוקאאוט</button><button type="button" class="chip" data-mode="king">👑 מלך הפנדלים</button><button type="button" class="chip" data-mode="tour">גביע מול המחשב</button><button type="button" class="chip" data-mode="surv">הישרדות</button><button type="button" class="chip" data-mode="daily">אתגר יומי</button><button type="button" class="chip" data-mode="prac">🎯 תרגול</button><button type="button" class="chip" data-mode="cabinet">🏆 ארון גביעים</button><button type="button" class="chip" data-mode="stats">הסטטיסטיקה שלי</button></div><footer class="intro-foot"><button type="button" class="icon mute" data-mute aria-label="השתקה" aria-pressed="${audio.muted}">${audio.muted?'🔇':'🔊'}</button><button type="button" class="icon" data-mode="settings" aria-label="הגדרות">⚙️</button><span>Penalty Hero · גרסה <bdi dir="ltr">${VERSION}</bdi></span></footer></div>`,
     el=>{const v=el.querySelector('video'),play=()=>{const p=v.play();p&&p.catch&&p.catch(()=>{})};play();const vis=()=>{document.hidden?v.pause():play()};document.addEventListener('visibilitychange',vis);el.addEventListener('pointerdown',play,{passive:true});
       const input=el.querySelector('#playerName');input.addEventListener('input',()=>setName(input.value));
       const choose=mode=>{setName(input.value);S.mode=mode;if(mode==='stats')return statsScreen();if(mode==='cabinet')return cab.screen();if(mode==='settings')return settings.screen();if(mode==='king')return cup.kingScreen(intro);if(mode==='cup')return cup.home();if(mode==='cupjoin')return cup.register(S.cupInvite);if(mode==='daily')return daily();pickMine()};
@@ -73,7 +74,7 @@ export function startApp(root,{audio,haptics=null}){
           if(b.dataset.country){P.country=b.dataset.country;const c=cat.countries.find(x=>x.id===P.country);P.league=c.leagues.length===1?c.leagues[0].id:null;paint()}
           else if(b.dataset.league){P.league=b.dataset.league;paint()}else if(b.dataset.club)done(b.dataset.club)})})};
     paint()}
-  function pickMine(){picker({title:'הקבוצה שלך',note:esc(nameOrDefault())+(S.mode==='net'?' · כל צד בוחר קבוצה משלו':''),back:intro,done:id=>{S.my=id;store.set('club',id);S.mode==='net'?lobby():S.mode==='tour'?tournament():S.mode==='surv'?survival():opponent()}})}
+  function pickMine(){picker({title:'הקבוצה שלך',note:esc(nameOrDefault())+(S.mode==='net'?' · כל צד בוחר קבוצה משלו':''),back:intro,done:id=>{S.my=id;store.set('club',id);S.mode==='net'?lobby():S.mode==='tour'?tournament():S.mode==='surv'?survival():S.mode==='prac'?practice():opponent()}})}
 
   /* ---------- 5: the opponent (computer) ---------- */
   function opponent(){const my=clubById(S.my);if(!my)return pickMine();
@@ -141,7 +142,7 @@ export function startApp(root,{audio,haptics=null}){
       ${row('דו־קרבים',st.played)}${row('ניצחונות',st.wins+' · '+pct(st.wins,st.played))}${row('רצף ניצחונות / שיא',st.streak+' / '+st.bestStreak)}
       ${row('בעיטות / שערים',st.shots+' / '+st.goals+' · '+pct(st.goals,st.shots))}${row('הצלות כששמרת',st.saves+' מתוך '+st.faced)}
       ${row('שיא הישרדות',st.survBest+' שערים')}${row('טורנירים: זכיות / ניסיונות',st.tourWins+' / '+st.tourPlayed)}
-      ${row('אתגר יומי: רצף ימים / שיא',D.streak+' / '+D.best+' מתוך 5')}</div>
+      ${row('אתגר יומי: רצף ימים / שיא',D.streak+' / '+D.best+' מתוך 5')}${row('תרגול: דיוק / שיא',st.pracKicks?pct(st.pracPoints,st.pracKicks*3)+' / '+st.pracBest+' מתוך '+MAX_POINTS:'עוד לא התאמנת')}</div>
       <button type="button" class="link" id="reset">איפוס הסטטיסטיקה</button></main>`,el=>{el.querySelector('[data-back]').onclick=intro;
       el.querySelector('#reset').onclick=()=>{const b=el.querySelector('#reset');if(b.dataset.sure){S.stats=parseStats(null);saveStats();cab.reset();statsScreen()}else{b.dataset.sure='1';b.textContent='ללחוץ שוב כדי למחוק הכול';}}})}
   /* a cup: quarter-final, semi-final, final. Win the shoot-out to go on, lose and you are out. */
@@ -179,6 +180,19 @@ export function startApp(root,{audio,haptics=null}){
         const A=buildSide(my,sa,{participant:nameOrDefault()}),B=buildSide(op,sb,{twin:op.id===my.id,participant:'המחשב'});const best=S.stats.survBest;
         game({sides:{a:A,b:B},me:'a',first:'a',exit:intro,runner:({arena,audio,hud,signal})=>runSurvival({arena,audio,sides:{a:A,b:B},hud,signal,best}),custom:{end(res){
           const record=recordSurvival(S.stats,res.goals);saveStats();return {good:res.goals>0,title:res.goals?`${res.goals} שערים ברצף`:'לא הבקעת הפעם',lines:[record&&res.goals?'שיא חדש!':`השיא שלך: ${S.stats.survBest}`],buttons:[['again','עוד ניסיון',survival],['home','יציאה',intro,'ghost']]}}}})}})}
+  /* practice: ten kicks at a marked spot, the score is how near the ball came */
+  async function practice(){const my=clubById(S.my);if(!my)return pickMine();S.mode='prac';const st=S.stats,acc=st.pracKicks?Math.round(100*st.pracPoints/(st.pracKicks*3)):0;
+    show('prac',top('תרגול פנדלים',true)+`<main class="body center"><div class="vs-one">${crestOf(my)}<strong>${esc(my.name)}</strong></div>
+      <div class="card"><p class="big">${st.pracRuns?`השיא שלך: <b>${st.pracBest}</b> מתוך ${MAX_POINTS}`:'עוד לא התאמנת'}</p>${st.pracRuns?`<p class="note">דיוק כללי ${acc}% · ${st.pracBulls} בולים · ${st.pracKicks} בעיטות</p>`:''}
+      <p class="note">${SESSION} בעיטות. בכל בעיטה מסומנת מטרה בשער, והשוער עומד באמצע. בול שווה 3 נקודות, קרוב 2, באזור 1. אחרי כל בעיטה מראים כמה סנטימטרים החטאת.</p>
+      <button type="button" class="btn big" id="go">התחל</button></div></main>`,el=>{
+      el.querySelector('[data-back]').onclick=intro;
+      el.querySelector('#go').onclick=async()=>{const b=el.querySelector('#go');b.disabled=true;b.textContent='טוען…';const op=similarOpponent(S.my);let sa,sb;
+        try{[sa,sb]=await Promise.all([loadSquad(my.id),loadSquad(op.id)])}catch(e){b.disabled=false;b.textContent='התחל';return toast('לא הצלחנו לטעון את הסגלים. בדקו את החיבור.')}if(screen!=='prac')return;
+        const A=buildSide(my,sa,{participant:nameOrDefault()}),B=buildSide(op,sb,{twin:op.id===my.id,participant:'המחשב'});
+        game({sides:{a:A,b:B},me:'a',first:'a',exit:intro,runner:({arena,audio,hud,signal})=>runPractice({arena,audio,sides:{a:A,b:B},hud,signal}),custom:{end(res){
+          const record=recordPractice(S.stats,res)&&res.points>0;saveStats();
+          return {good:res.accuracy>=60,title:`${res.points} נקודות מתוך ${MAX_POINTS}`,lines:[`${verdict(res.accuracy)} · דיוק ${res.accuracy}% · ${res.bulls} בולים · ממוצע ${res.avgCm} ס״מ מהמטרה`,record?'שיא חדש!':`השיא שלך: ${S.stats.pracBest}`],buttons:[['again','עוד סבב',practice],['home','יציאה',intro,'ghost']]}}}})}})}
   /* the daily challenge: the same keeper and the same dice for everybody today, five kicks */
   function dailySetup(key){const rng=makeRng('daily:'+key+':clubs'),all=Object.values(getCatalog().clubs).sort((a,b)=>a.id<b.id?-1:1);const my=all[Math.floor(rng()*all.length)];
     const near=all.filter(c=>c.id!==my.id).sort((a,b)=>Math.abs(a.str-my.str)-Math.abs(b.str-my.str)).slice(0,6);return {my,op:near[Math.floor(rng()*near.length)]}}
@@ -210,10 +224,10 @@ export function startApp(root,{audio,haptics=null}){
             img.onload=()=>{if(box.isConnected&&box.dataset.pid===taker.id){box.append(img);box.classList.add('has')}};img.src=f.src;
             if(f.credit){box.title=`צילום: ${f.credit.author} · ${f.credit.license}`;box.onclick=()=>toast(`צילום: ${f.credit.author||'לא ידוע'}${f.credit.license?' · '+f.credit.license:''} · Wikimedia Commons`,3200)}})},
         last({iKick,result}){recordKick(S.stats,{iKick,how:result.how})},
-        solo({marks,best,label,total}){const mine=el.querySelector(`.hud-row[data-side="${me}"]`),oth=el.querySelector(`.hud-row[data-side="${other}"]`);const goals=marks.filter(Boolean).length;
+        solo({marks,best,label,total,score,cap}){const mine=el.querySelector(`.hud-row[data-side="${me}"]`),oth=el.querySelector(`.hud-row[data-side="${other}"]`);const goals=marks.filter(Boolean).length;
           const slots=total||Math.max(5,marks.length+1);mine.classList.add('on');oth.classList.remove('on');
-          mine.querySelector('.marks').innerHTML=Array.from({length:slots},(_,i)=>`<i class="${marks[i]===1?'in':marks[i]===0?'no':''}"></i>`).join('');mine.querySelector('.score').textContent=goals;
-          oth.querySelector('.marks').innerHTML='';oth.querySelector('.hud-names small').textContent=total?'אתגר יומי':'שיא אישי';oth.querySelector('.score').textContent=total?total:best||0},
+          mine.querySelector('.marks').innerHTML=Array.from({length:slots},(_,i)=>`<i class="${marks[i]===1?'in':marks[i]===2?'mid':marks[i]===0?'no':''}"></i>`).join('');mine.querySelector('.score').textContent=score??goals;
+          oth.querySelector('.marks').innerHTML='';oth.querySelector('.hud-names small').textContent=total?(label||'אתגר יומי'):'שיא אישי';oth.querySelector('.score').textContent=cap??(total?total:best||0)},
         marks(duel){const sc=scoreOf(duel);for(const r of el.querySelectorAll('.hud-row')){const k=r.dataset.side;r.querySelector('.score').textContent=sc[k];r.querySelector('.marks').innerHTML=marksOf(duel,k).map(v=>`<i class="${v===1?'in':v===0?'no':''}"></i>`).join('');r.querySelector('.marks').setAttribute('aria-label',marksOf(duel,k).map(v=>v===1?'שער':v===0?'החמצה':'').filter(Boolean).join(', '))}}};
       hud.marks({kicks:{a:[],b:[]},log:[],winner:null,first});
       const stop=()=>{if(over)return;over=true;ac.abort();audio.stopAll()};

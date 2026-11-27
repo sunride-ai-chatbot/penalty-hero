@@ -1,5 +1,5 @@
 // What the player has done, kept on this phone only. Pure functions over a plain object; the screens decide when to save.
-export const emptyStats=()=>({v:1,played:0,wins:0,streak:0,bestStreak:0,shots:0,goals:0,faced:0,saves:0,survRuns:0,survBest:0,tourPlayed:0,tourWins:0,tourBest:0,goalRun:0,bestGoalRun:0,shutouts:0,cupPlayed:0,cupWins:0,
+export const emptyStats=()=>({v:1,played:0,wins:0,streak:0,bestStreak:0,shots:0,goals:0,faced:0,saves:0,survRuns:0,survBest:0,tourPlayed:0,tourWins:0,tourBest:0,goalRun:0,bestGoalRun:0,shutouts:0,cupPlayed:0,cupWins:0,pracRuns:0,pracKicks:0,pracPoints:0,pracBulls:0,pracBest:0,pracBestBulls:0,
   daily:{last:'',streak:0,bestStreak:0,best:0,total:0,scores:{}}});
 export function parseStats(raw){try{const o=JSON.parse(raw||'null');if(!o||typeof o!=='object')return emptyStats();const e=emptyStats();const out={...e};
   for(const k of Object.keys(e))if(typeof e[k]==='number'&&Number.isFinite(+o[k])&&+o[k]>=0)out[k]=Math.floor(+o[k]);
@@ -12,6 +12,8 @@ export function recordKick(st,{iKick,how}){if(iKick){st.shots++;if(how==='goal')
 /** conceded: the goals the other side scored; a win without conceding is a shutout */
 export function recordDuel(st,{won,conceded=1}){st.played++;st.goalRun=0;if(won){if(conceded===0)st.shutouts++;st.wins++;st.streak++;st.bestStreak=Math.max(st.bestStreak,st.streak)}else st.streak=0;return st}
 export function recordSurvival(st,goals){st.survRuns++;st.goalRun=0;const record=goals>st.survBest;st.survBest=Math.max(st.survBest,goals);return record}
+/** a practice session: kicks, points (of 3 a kick) and bulls; true when the points are my best. It does not touch the goal run. */
+export function recordPractice(st,{kicks,points,bulls}){st.pracRuns++;st.pracKicks+=kicks;st.pracPoints+=points;st.pracBulls+=bulls;const record=points>st.pracBest;st.pracBest=Math.max(st.pracBest,points);st.pracBestBulls=Math.max(st.pracBestBulls,bulls);return record}
 /** a knockout league (the friends' cup) came to its end; won: I am the champion */
 export function recordCup(st,won){st.cupPlayed++;if(won)st.cupWins++;return st}
 /** rounds: how many shoot-outs were won (0..4); the cup (round of 16 to the final) is won at 4 */

@@ -126,7 +126,7 @@ await step('two clients, one room: the link keeps the room, different clubs and 
   await guest.click('#quit');await guest.click('#leave');await host.waitForFunction(()=>/היריב עזב/.test(document.querySelector('#panel').innerText),null,{timeout:15000});await ctx.close()});
 
 await step('more ways to play: the chips, my numbers, survival ends on the first miss, the daily counts once, the cup runs a round',async()=>{const ctx=await phone(),p=await page(ctx);await p.goto(BASE+'?debug');await p.waitForSelector('#playerName');
-  assert.deepEqual(await p.$$eval('.more .chip',b=>b.map(x=>x.textContent)),['ליגת נוקאאוט','👑 מלך הפנדלים','גביע מול המחשב','הישרדות','אתגר יומי','🏆 ארון גביעים','הסטטיסטיקה שלי']);await p.fill('#playerName','רוני');
+  assert.deepEqual(await p.$$eval('.more .chip',b=>b.map(x=>x.textContent)),['ליגת נוקאאוט','👑 מלך הפנדלים','גביע מול המחשב','הישרדות','אתגר יומי','🎯 תרגול','🏆 ארון גביעים','הסטטיסטיקה שלי']);await p.fill('#playerName','רוני');
   const kickOnce=async(x,y,m,c=0)=>{await p.waitForFunction(()=>window.__ph&&window.__ph.arena._kick,null,{timeout:90000});await p.evaluate(([x,y,m,c])=>window.__ph.arena._kick(x,y,m,c),[x,y,m,c])};
   const stats=()=>p.evaluate(()=>JSON.parse(localStorage.getItem('ph.stats')||'{}'));
   await p.click('.chip[data-mode=stats]');await p.waitForSelector('#app[data-screen=stats]');assert.match(await p.textContent('.statlist'),/שיא הישרדות/);await p.click('[data-back]');await p.waitForSelector('#playerName');
@@ -155,12 +155,12 @@ await step('more ways to play: the chips, my numbers, survival ends on the first
 
 await step('the trophy cabinet: locked and open prizes, a choice that is kept, a new stadium and ball in the scene, the medals told at the end',async()=>{const ctx=await phone();
   await ctx.addInitScript(()=>{if(!localStorage.getItem('ph.stats'))localStorage.setItem('ph.stats',JSON.stringify({v:1,played:12,wins:10}))});const p=await page(ctx);await p.goto(BASE+'?debug');await p.waitForSelector('#playerName');
-  await p.click('.chip[data-mode=cabinet]');await p.waitForSelector('#app[data-screen=cabinet]');assert.match(await p.textContent('.top p'),/3 מדליות מתוך 18 · 3 פרסים מתוך 10/);
+  await p.click('.chip[data-mode=cabinet]');await p.waitForSelector('#app[data-screen=cabinet]');assert.match(await p.textContent('.top p'),/3 מדליות מתוך 19 · 3 פרסים מתוך 10/);
   assert.equal((await p.$$('.cab-item')).length,7);assert.equal((await p.$$('.cab-item.lock')).length,4);assert.match(await p.textContent('.cab-item.on'),/קלאסי/);
   await p.click('.cab-item[data-id=fire]');assert.match(await p.textContent('.toast'),/חמישה שערים ברצף/);assert.equal((await p.$$('.cab-item.on')).length,1,'a locked ball cannot be chosen');
   await p.click('.cab-item[data-id=neon]');assert.match(await p.textContent('.cab-item.on'),/ניאון/);assert.equal(JSON.parse(await p.evaluate(()=>localStorage.getItem('ph.look'))).ball,'neon');
   await p.click('[data-tab=fields]');assert.equal((await p.$$('.cab-item')).length,6);assert.equal((await p.$$('.cab-item.lock')).length,3);await p.click('.cab-item[data-id=dusk]');assert.equal(JSON.parse(await p.evaluate(()=>localStorage.getItem('ph.look'))).field,'dusk');
-  await p.click('[data-tab=medals]');assert.equal((await p.$$('.medal')).length,18);assert.equal((await p.$$('.medal.done')).length,3);
+  await p.click('[data-tab=medals]');assert.equal((await p.$$('.medal')).length,19);assert.equal((await p.$$('.medal.done')).length,3);
   // earn the rain stadium (survival record 5) and see both prizes in a real scene
   await p.evaluate(()=>{const s=JSON.parse(localStorage.getItem('ph.stats'));s.survBest=5;localStorage.setItem('ph.stats',JSON.stringify(s))});await p.reload();await p.waitForSelector('#playerName');await p.click('.chip[data-mode=cabinet]');await p.click('[data-tab=fields]');
   assert.equal((await p.$$('.cab-item.lock')).length,2);await p.click('.cab-item[data-id=rain]');assert.match(await p.textContent('.cab-item.on'),/גשם/);await p.click('[data-back]');await p.waitForSelector('#playerName');
@@ -202,6 +202,21 @@ await step('settings: ⚙️ opens the screen, each switch and level is kept, th
   await p.waitForFunction(()=>window.__ph&&window.__ph.arena.stage&&document.querySelector('.ar-load').hidden,null,{timeout:120000});
   assert.equal(await p.evaluate(()=>window.__ph.arena.stage.debug().quality),1,'auto starts at the level of the last session');
   await p.click('#quit');await p.click('#leave');await p.waitForSelector('#playerName');await ctx.close()});
+
+await step('practice: a spot is marked on the goal, every kick tells how many centimetres it missed by, ten kicks end with the points, and the career goals stay untouched',async()=>{const ctx=await phone();
+  await ctx.addInitScript(()=>{if(!localStorage.getItem('ph.stats'))localStorage.setItem('ph.stats',JSON.stringify({v:1,played:3,wins:1,goals:7,shots:9}))});const p=await page(ctx);await p.goto(BASE+'?debug&view=2d');await p.fill('#playerName','נועה');
+  await p.click('.chip[data-mode=prac]');await pickClub(p,'il','il1','il:mta');await p.waitForSelector('#app[data-screen=prac]');assert.match(await p.textContent('.card .big'),/עוד לא התאמנת/);await p.click('#go');await p.waitForSelector('#app[data-screen=game]');
+  assert.match(await p.textContent('.hud-row[data-side=b] small'),/תרגול/);
+  const seen=[];
+  for(let i=0;i<10;i++){await p.waitForFunction(i=>document.querySelector('.ar-mark:not([hidden])')&&document.querySelector('.ar-land[hidden]')&&document.querySelectorAll('.hud-row[data-side=a] .marks i.in,.hud-row[data-side=a] .marks i.mid,.hud-row[data-side=a] .marks i.no').length===i,i,{timeout:30000});assert.match(await p.textContent('.ar-hint'),/מטרה: .*(פינה|צד)/);
+    for(let k=0;k<40&&!(await p.$('.ar-land:not([hidden])'));k++){await p.evaluate(()=>window.__ph&&window.__ph.arena&&window.__ph.arena._kick&&window.__ph.arena._kick(0,1.2,.73));await p.waitForTimeout(250)}
+    await p.waitForSelector('.ar-land:not([hidden])',{state:'attached',timeout:15000});await p.waitForFunction(()=>/ס״מ/.test(document.querySelector('.ar-flash')?.textContent||''),null,{timeout:15000});seen.push(await p.textContent('.ar-flash'));
+    await p.waitForFunction(i=>document.querySelectorAll('.hud-row[data-side=a] .marks i.in,.hud-row[data-side=a] .marks i.mid,.hud-row[data-side=a] .marks i.no').length>=i+1,i,{timeout:15000});}
+  await p.waitForSelector('#panel .end',{timeout:30000});assert.match(await p.textContent('#panel h2'),/נקודות מתוך 30/);assert.match(await p.textContent('#panel .end'),/דיוק \d+%/);
+  assert.equal(seen.length,10);assert.ok(seen.every(t=>/ס״מ/.test(t)));
+  const st=JSON.parse(await p.evaluate(()=>localStorage.getItem('ph.stats')));assert.deepEqual([st.pracRuns,st.pracKicks],[1,10]);assert.deepEqual([st.goals,st.shots],[7,9],'practice kicks are not career goals');
+  await p.click('#panel [data-act=again]');await p.waitForSelector('#app[data-screen=prac]');assert.match(await p.textContent('.card .big'),/השיא שלך/);await p.click('[data-back]');await p.waitForSelector('#playerName');
+  await p.click('.chip[data-mode=stats]');assert.match(await p.textContent('.statlist'),/תרגול: דיוק \/ שיא/);await ctx.close()});
 
 await browser.close();srv.close();
 const unique=[...new Set(problems)];console.log(`\n${passed} passed, ${unique.length} problems`);for(const x of unique)console.log(' - '+x);process.exit(unique.length?1:0);

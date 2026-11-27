@@ -16,10 +16,10 @@ export function createArena(host,{debug=false,audio=null,force2d=false,look=null
   host.classList.add('game-arena');host.tabIndex=0;
   host.innerHTML=`<div class="ar-view"></div><div class="ar-load" role="status">טוען את האצטדיון…</div>
     <div class="ar-role" aria-live="assertive"></div><div class="ar-chip" hidden></div><div class="ar-flash" aria-live="assertive"></div><div class="ar-hint" aria-live="polite"></div>
-    <div class="ar-sight" hidden><b></b></div><div class="ar-target" hidden></div><svg class="ar-pull" hidden aria-hidden="true"><line/></svg><svg class="ar-flight" hidden aria-hidden="true"><path/></svg>
+    <div class="ar-sight" hidden><b></b></div><div class="ar-target" hidden></div><div class="ar-mark" hidden><b></b></div><div class="ar-land" hidden></div><svg class="ar-pull" hidden aria-hidden="true"><line/></svg><svg class="ar-flight" hidden aria-hidden="true"><path/></svg>
     <div class="ar-meter" dir="ltr" hidden aria-label="מד דיוק ועוצמה"><span class="ar-window"></span><i class="ar-marker"></i><em>חלש</em><em>חזק</em></div>
     <div class="ar-timer" hidden aria-hidden="true"><i></i></div><div class="ar-curl" hidden aria-live="polite"></div><div class="ar-replay" hidden><b>חזרה</b><span>גע כדי לדלג</span></div><div class="ar-pulse" aria-hidden="true"></div><div class="ar-a11y"></div>${debug?'<pre class="ar-debug" dir="ltr"></pre><div class="ar-zones"></div>':''}`;
-  const $=s=>host.querySelector(s),view=$('.ar-view'),loadEl=$('.ar-load'),flashEl=$('.ar-flash'),hintEl=$('.ar-hint'),sight=$('.ar-sight'),target=$('.ar-target'),pull=$('.ar-pull'),meter=$('.ar-meter'),timer=$('.ar-timer'),a11y=$('.ar-a11y'),curlBtn=$('.ar-curl'),replayEl=$('.ar-replay'),flight=$('.ar-flight');
+  const $=s=>host.querySelector(s),view=$('.ar-view'),loadEl=$('.ar-load'),flashEl=$('.ar-flash'),hintEl=$('.ar-hint'),sight=$('.ar-sight'),target=$('.ar-target'),markEl=$('.ar-mark'),landEl=$('.ar-land'),pull=$('.ar-pull'),meter=$('.ar-meter'),timer=$('.ar-timer'),a11y=$('.ar-a11y'),curlBtn=$('.ar-curl'),replayEl=$('.ar-replay'),flight=$('.ar-flight');
   const CURL_TEXT={'0':'בעיטה ישרה','1':'עיקול ימינה ↷','-1':'עיקול שמאלה ↶'};
   let stage=null,disposed=false,flashT=0,roleT=0,debugT=0,lastInfo={},curlPref=0;const rng=makeRng((Math.random()*2**32)>>>0);
   /* rain in the "rain" stadium: a thin layer of drops over the picture, drawn on a small canvas only while it rains */
@@ -44,6 +44,10 @@ export function createArena(host,{debug=false,audio=null,force2d=false,look=null
   function showDebug(){const el=$('.ar-debug');if(!el||!stage)return;const d=stage.debug();el.textContent=`${stage.kind} fps ${d.fps} | clip ${d.clip} frame ${d.frame} (contact ${d.contactFrame})\npower ${d.power??'-'} | keeper ${d.keeper} z ${d.keeperZ??'-'}\n${lastInfo.taker||''} | dive ${lastInfo.dive||'-'} | ${lastInfo.how||''}`;
     const z=$('.ar-zones');if(z&&!z.childElementCount)z.innerHTML=DIRS.map(d=>`<i data-z="${d}"></i>`).join('');for(const i of z?.children||[]){const [px,py]=stage.toScreen(...ZONE[i.dataset.z]);i.style.transform=`translate(${px}px,${py}px)`}}
   const place=(el,x,y)=>{const [px,py]=stage.toScreen(x,y);el.style.transform=`translate(${px.toFixed(1)}px,${py.toFixed(1)}px)`};
+  /* practice: a ring on the goal where the ball should go, and after the kick a dot where it went. Both follow the picture (the camera moves a little). */
+  let markAt=null,landAt=null,markRaf=0;
+  const markLoop=()=>{markRaf=0;if(disposed||!stage||(!markAt&&!landAt))return;if(markAt)place(markEl,markAt.x,markAt.y);if(landAt)place(landEl,landAt.x,landAt.y);markRaf=requestAnimationFrame(markLoop)};
+  const markGo=()=>{if(!markRaf&&!disposed)markRaf=requestAnimationFrame(markLoop)};
   /* one question at a time: resolves once, cleans up always */
   function ask(signal,setup){return new Promise((resolve,reject)=>{if(disposed||signal?.aborted)return reject(new Aborted());const ac=new AbortController();let raf=0,settled=false;
     const finish=(v,err)=>{if(settled)return;settled=true;cancelAnimationFrame(raf);ac.abort();signal?.removeEventListener('abort',onAbort);cleanup();err?reject(err):resolve(v)};
@@ -55,6 +59,9 @@ export function createArena(host,{debug=false,audio=null,force2d=false,look=null
   const api={broken:false,slow:false,get stage(){return stage},get kind(){return stage?.kind},
     /** (re)build the picture for a kick; resolves when the taker's film and the stadium are on the GPU */
     async scene(opts){if(disposed)return false;const L=look&&look();if(L)opts={...opts,skin:L.skin,mood:L.field&&L.field!=='auto'?L.field:opts.mood};rain(opts.mood==='rain');if(!stage||api.broken){api.broken=false;return build(opts)}try{stage.reset(opts);return true}catch(e){return build(opts)}},
+    mark(t){landAt=null;landEl.hidden=true;markAt=t?{x:t.x,y:t.y}:null;markEl.hidden=!markAt;markEl.className='ar-mark';if(markAt&&stage){place(markEl,markAt.x,markAt.y);markGo()}},
+    markHit(x,y,grade){if(!markAt)return;landAt={x:clamp(x,-6,6),y:clamp(y,.05,4)};landEl.hidden=false;landEl.className='ar-land '+(grade||'');markEl.classList.add(grade||'');if(stage){place(landEl,landAt.x,landAt.y);markGo()}},
+    markOff(){markAt=landAt=null;markEl.hidden=landEl.hidden=true},
     hint(text){hintEl.textContent=text||''},info(o){lastInfo={...lastInfo,...o}},
     /**
      * Say, unmistakably, which of the two I am for this kick. Both phones show the same picture (the taker from behind),
@@ -143,6 +150,6 @@ export function createArena(host,{debug=false,audio=null,force2d=false,look=null
       const skip=e=>{e.preventDefault();e.stopPropagation();end()};const t=setTimeout(end,9000);signal?.addEventListener('abort',end);host.addEventListener('pointerdown',skip,true);
       host.setAttribute('data-celebrating','1');try{stage.celebrate(end,{goal})}catch(e){console.error(e);end()}})},
     cheer(v){try{stage?.cheer(v)}catch(e){}},pause(){try{stage?.pause()}catch(e){}},resume(){try{stage?.resume()}catch(e){}},
-    dispose(){if(disposed)return;rain(false);disposed=true;host.classList.remove('pressure','replaying','cine');clearTimeout(flashT);clearTimeout(roleT);host.classList.remove('i-kick','i-keep');clearInterval(debugT);try{api._cancel&&api._cancel()}catch(e){}host.removeEventListener('contextmenu',stop);host.removeEventListener('selectstart',stop);host.removeEventListener('dragstart',stop);
+    dispose(){if(disposed)return;rain(false);cancelAnimationFrame(markRaf);markAt=landAt=null;disposed=true;host.classList.remove('pressure','replaying','cine');clearTimeout(flashT);clearTimeout(roleT);host.classList.remove('i-kick','i-keep');clearInterval(debugT);try{api._cancel&&api._cancel()}catch(e){}host.removeEventListener('contextmenu',stop);host.removeEventListener('selectstart',stop);host.removeEventListener('dragstart',stop);
       try{stage?.dispose()}catch(e){}stage=null;host.innerHTML='';host.classList.remove('game-arena')}};
   return api}

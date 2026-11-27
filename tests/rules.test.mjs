@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {resolveKick,keeperPlan,timingWindow,meterSpeed,meterPosition,powerOf,flightSeconds,frameOf,makeRng,aiKick,aiDive,shootoutWinner,makeCallBag,GOAL_CALLS,resultWord,DIRS,ZONE,zoneOf,dirFromPull,swayOf,GOAL} from '../src/core/rules.js';
+import {resolveKick,keeperPlan,timingWindow,meterSpeed,meterPosition,powerOf,flightSeconds,frameOf,overTheBar,makeRng,aiKick,aiDive,shootoutWinner,makeCallBag,GOAL_CALLS,resultWord,DIRS,ZONE,zoneOf,dirFromPull,swayOf,GOAL} from '../src/core/rules.js';
 import {createDuel,turnOf,recordKick,scoreOf,takerIndex,marksOf} from '../src/core/duel.js';
 
 test('goal frame: 7.32 m wide, 2.44 m high; aiming outside really misses',()=>{
@@ -108,3 +108,7 @@ test('pressure: the deciding kick and sudden death run the marker 12% faster, no
   const d=createDuel('a');assert.equal(pressureOf(d),0);for(const o of ['goal','goal','goal','goal','goal','miss','miss','miss'])recordKick(d,d.log.length,o);   // a: 5 goals … after 8 kicks a has 4 b has 0
   assert.equal(d.winner,null);assert.equal(pressureOf(d),1,'a goal now settles it');assert.equal(endsDuel(d,true),true);assert.equal(endsDuel(d,false),false);
   const e=createDuel('a');for(let i=0;i<10;i++)recordKick(e,i,'goal');assert.equal(e.winner,null);assert.equal(pressureOf(e),1,'sudden death');assert.equal(endsDuel(e,true),false)});
+
+test('overTheBar is a miss above the crossbar between the posts, not a wide ball, a post or a goal',()=>{
+  assert.equal(overTheBar({how:'off',x:0,y:3}),true);assert.equal(overTheBar({how:'off',x:3.7,y:2.8}),true);
+  assert.equal(overTheBar({how:'off',x:5,y:1}),false);assert.equal(overTheBar({how:'off',x:5,y:3}),false);assert.equal(overTheBar({how:'post',x:0,y:2.5}),false);assert.equal(overTheBar({how:'goal',x:0,y:1}),false);assert.equal(overTheBar(null),false)});

@@ -1,7 +1,7 @@
 // One shoot-out, start to finish, in any mode. The only difference between the modes is where the other side's
 // choice and the random seed come from: the computer (aiKick/aiDive + a local seed) or the other phone (commit–reveal).
 // The kick itself always goes through resolveKick(), and the picture only draws its result.
-import {resolveKick,aiKick,aiDive,makeRng,resultWord,makeCallBag,leftFooted,moodOf} from '../core/rules.js';
+import {resolveKick,aiKick,aiDive,makeRng,resultWord,overTheBar,makeCallBag,leftFooted,moodOf} from '../core/rules.js';
 import {createDuel,turnOf,recordKick,scoreOf,takerIndex,pressureOf,endsDuel} from '../core/duel.js';
 import {kitsFor,shirtName} from '../data/catalog.js';
 const sleep=(ms,signal)=>new Promise((res,rej)=>{if(signal?.aborted)return rej(Object.assign(new Error('aborted'),{name:'AbortError'}));const t=setTimeout(()=>{signal?.removeEventListener('abort',stop);res()},ms);const stop=()=>{clearTimeout(t);rej(Object.assign(new Error('aborted'),{name:'AbortError'}))};signal?.addEventListener('abort',stop,{once:true})});
@@ -41,7 +41,7 @@ export async function runDuel({arena,audio,sides,me,first,net=null,hud,signal,ti
     arena.hint('');arena.roleOff();arena.info({dive:result.keeper.dir,how:`${result.how} x${result.x} y${result.y} p${result.power}`});
     const settle=()=>{if(!recordKick(duel,turn.k,result.out))return;            // once: a second callback, a replayed frame or a repeated message changes nothing
       const word=resultWord(result.how,iKick,result.catch,callBag);hud.marks(duel);arena.flash(word.text,word.good);arena.cheer(word.good?1:.3);
-      if(result.how==='goal')audio?.goal(iKick);else if(result.how==='save')audio?.save(result.catch);else if(result.how==='post')audio?.post();else audio?.miss();
+      if(result.how==='goal')audio?.goal(iKick);else if(result.how==='save')audio?.save(result.catch);else if(result.how==='post')audio?.post();else audio?.miss(overTheBar(result));
       try{navigator.vibrate&&navigator.vibrate(word.good?[18,40,18]:28)}catch(e){}};
     await arena.play(result,{onContact:()=>audio?.kick(result.power),onResult:settle,signal,decisive:ends});settle();
     if(ends&&!signal?.aborted)await arena.replay(result,{signal});

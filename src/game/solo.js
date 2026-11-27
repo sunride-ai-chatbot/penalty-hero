@@ -1,7 +1,7 @@
 // The solo modes: survival (kick until the first miss, the keeper gets better with every goal) and the daily challenge (five
 // kicks against the same keeper and the same dice for everybody that day). Always me kicking, the computer in goal; every kick
 // goes through the same resolveKick() as the duel.
-import {resolveKick,aiDive,makeRng,resultWord,makeCallBag,clamp,leftFooted,moodOf} from '../core/rules.js';
+import {resolveKick,aiDive,makeRng,resultWord,overTheBar,makeCallBag,clamp,leftFooted,moodOf} from '../core/rules.js';
 import {kitsFor,shirtName} from '../data/catalog.js';
 const sleep=(ms,signal)=>new Promise((res,rej)=>{if(signal?.aborted)return rej(Object.assign(new Error('aborted'),{name:'AbortError'}));const t=setTimeout(()=>{signal?.removeEventListener('abort',stop);res()},ms);const stop=()=>{clearTimeout(t);rej(Object.assign(new Error('aborted'),{name:'AbortError'}))};signal?.addEventListener('abort',stop,{once:true})});
 const aborted=()=>Object.assign(new Error('aborted'),{name:'AbortError'});
@@ -19,7 +19,7 @@ export async function soloKick({arena,audio,hud,T,G,taker,keeper,n,seed,diveRng,
   const result=resolveKick({aim:c.aim,meter:c.meter,shotSkill:taker.shot,keeperSkill:keeper.keep,dive:aiDive(keeper.keep,diveRng),curl:c.curl||0,rng:makeRng(String(seed))});
   arena.hint('');arena.roleOff();arena.pressure(0);arena.info({dive:result.keeper.dir,how:`${result.how} x${result.x} y${result.y} p${result.power}`});
   let told=false;const settle=()=>{if(told)return;told=true;const word=resultWord(result.how,true,result.catch,callBag);arena.flash(word.text,word.good);arena.cheer(word.good?1:.3);
-    if(result.how==='goal')audio?.goal(true);else if(result.how==='save')audio?.save(result.catch);else if(result.how==='post')audio?.post();else audio?.miss();
+    if(result.how==='goal')audio?.goal(true);else if(result.how==='save')audio?.save(result.catch);else if(result.how==='post')audio?.post();else audio?.miss(overTheBar(result));
     try{navigator.vibrate&&navigator.vibrate(word.good?[18,40,18]:28)}catch(e){}};
   await arena.play(result,{onContact:()=>audio?.kick(result.power),onResult:settle,signal});settle();return result}
 

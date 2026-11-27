@@ -37,6 +37,8 @@ export const swayOf=shotSkill=>+clamp(.66-(shotSkill-55)*.0115,.16,.78).toFixed(
 export function swayAt(seconds,amp){return {dx:Math.sin(seconds*5.3)*amp+Math.sin(seconds*9.1+1)*amp*.35,dy:Math.sin(seconds*4.1+.7)*amp*.55}}
 
 /* ---- the frame of the goal ---- */
+/** a miss that went above the crossbar between the posts' width (not a ball that went wide): the commentator may say "over the bar" */
+export const overTheBar=r=>r?.how==='off'&&r.y>GOAL.height+.09&&Math.abs(r.x)<=GOAL.halfWidth+.09;
 export function frameOf(x,y){const ax=Math.abs(x);if(ax>GOAL.halfWidth+.09||y>GOAL.height+.09)return 'off';if(ax>GOAL.halfWidth-.05||y>GOAL.height-.05)return 'post';return 'in'}
 
 /* ---- directions: three columns by three heights. 'C' is standing in the middle. ---- */

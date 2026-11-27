@@ -41,6 +41,7 @@ npm run catalog -- <נתיב ל־checkout של המקור>   # בנייה מחד
 - `assets/penalties29/video/kahal-duo-loop.mp4`, `kahal-poster.jpg` — קהל הווידאו והפוסטר
 - `assets/stand-crowd.webp` — יציע (הכתובת הקשיחה ל־goal-m.com ב־`world.js` הוחלפה בהפניה מקומית)
 - `assets/penalty-intro.mp4`, `cinematic-stadium.webp`, `penalty-crest.webp` — מסך הפתיחה
+- `assets/penalty-splash.mp4` (+ `penalty-splash.webp`, הפריים הראשון שלו) — סרטון הכניסה: הסמל מסתובב סביב עצמו חמש שניות על קיר קרם, ואז נחשף המשחק. סרטון חייב להיות עד כמה מאות KB; ראו `src/ui/splash.js`
 - `assets/penalty-180.png`, `penalty-192.png`, `penalty-512.png` — אייקונים
 - `assets/audio/crowd-{bed,goal,chance,song}.{opus,m4a}`, `credits.json`
 - `assets/facepacks/*.json` — 237 חבילות תמונות שחקנים

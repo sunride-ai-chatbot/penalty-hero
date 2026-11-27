@@ -16,8 +16,14 @@
 <link rel="icon" type="image/png" sizes="192x192" href="assets/penalty-192.png">
 <link rel="stylesheet" href="src/styles.css">
 <link rel="modulepreload" href="src/main.js">
+<script>
+/* Before the first paint: does the opening film play? (the same rule as wantsSplash in src/ui/splash.js) */
+(function(){try{var q=location.search,skip=/[?&]nosplash\b/.test(q)||(/[?&]debug\b/.test(q)&&!/[?&]splash\b/.test(q))||sessionStorage.getItem('ph.splashed')||matchMedia('(prefers-reduced-motion: reduce)').matches;
+if(!skip){document.documentElement.classList.add('splash-on');var m=document.querySelector('meta[name=theme-color]');m.dataset.was=m.content;m.content='#dbd2c4'}}catch(e){}})();
+</script>
 </head>
 <body>
+<div id="splash" class="splash" aria-hidden="true"><div class="film"><video muted playsinline webkit-playsinline autoplay preload="auto" poster="assets/penalty-splash.webp" src="assets/penalty-splash.mp4"></video></div></div>
 <div id="app" aria-live="off"></div>
 <noscript><p style="color:#fff;padding:24px;font-family:sans-serif">Penalty Hero צריך JavaScript כדי לרוץ.</p></noscript>
 <script type="module" src="src/main.js"></script>

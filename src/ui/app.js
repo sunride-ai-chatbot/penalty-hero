@@ -151,11 +151,13 @@ export function startApp(root,{audio,haptics=null}){
   function tournament(T){const my=clubById(S.my);if(!my)return pickMine();
     if(!T){try{T=drawCup({my:{id:my.id,str:my.str},pool:Object.values(getCatalog().clubs).map(c=>({id:c.id,str:c.str}))})}catch(e){return retry('אין מספיק קבוצות לטורניר.',intro,intro)}}
     S.mode='tour';if(debug){window.__tour=T;window.__tourShow=()=>tournament(T)}const rd=Math.min(T.round,ROUNDS-1),over=T.over,known=!over&&(T.round>0||T.peek),op=known?clubById(opponentOf(T,rd)):null,won=T.champion===T.my;
-    const {tree,results,champion}=treeHtml(T,{clubById});
+    /* the columns that appeared since this screen was last drawn pop in: the draw shows the first one, every played round the next */
+    const level=over?5:(T.peek||T.round>0)?T.round+1:0,before=T.shownLevel??0,fresh=[];for(let r=before;r<Math.min(level,4);r++)fresh.push(r);T.shownLevel=level;
+    const {tree,results,champion}=treeHtml(T,{clubById,fresh});
     show('cup',top('טורניר',true,over?(won?'אלופים!':'הטורניר הסתיים'):roundName(rd))+`<main class="body center">${tree}
       ${over?`<p class="tree-next">${won?'זכית בגביע! 🏆':`האלופה: <strong>${esc(champion||'')}</strong>`}</p><button type="button" class="btn big" id="new">טורניר חדש</button><button type="button" class="btn ghost" id="home">יציאה</button>`
-        :`<p class="tree-next">${known?`היריבה: <strong>${esc(op.name)}</strong> <bdi>${op.str}</bdi>`:'את היריבה תגלה בהגרלה'}</p>
-          <div class="card"><label for="playerName4">שם השחקן</label><input id="playerName4" type="text" maxlength="24" value="${esc(S.name)}" enterkeyhint="done" spellcheck="false"><button type="button" class="btn big" id="go">${known?'לנקודה הלבנה':'הגרל את היריבה'}</button><p class="note">מנצחים בדו־קרב מעפילים לשלב הבא. מפסידים: הטורניר נגמר. אחרי כל ניצחון נחשפות התוצאות של שאר המשחקים.</p></div>`}
+        :`<p class="tree-next">${known?`היריבה: <strong>${esc(op.name)}</strong> <bdi>${op.str}</bdi>`:'כל המשחקים של שמינית הגמר יוגרלו עכשיו'}</p>
+          <div class="card"><label for="playerName4">שם השחקן</label><input id="playerName4" type="text" maxlength="24" value="${esc(S.name)}" enterkeyhint="done" spellcheck="false"><button type="button" class="btn big" id="go">${known?'לנקודה הלבנה':'הגרל את המשחקים'}</button><p class="note">מנצחים בדו־קרב מעפילים לשלב הבא. מפסידים: הטורניר נגמר. אחרי כל דו־קרב נחשפות התוצאות של שאר המשחקים והעמודה הבאה בעץ.</p></div>`}
       ${results?`<div class="card rounds">${results}</div>`:''}</main>`,el=>{
       el.querySelector('[data-back]').onclick=intro;if(over){el.querySelector('#new').onclick=()=>tournament();el.querySelector('#home').onclick=intro;return}
       const input=el.querySelector('#playerName4');input.addEventListener('input',()=>setName(input.value));

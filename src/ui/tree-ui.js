@@ -5,7 +5,7 @@ import {clubCrest,esc} from './crest.js';
 const W=900,H=880,HW=40;                    // the drawing's own units; the picture scales with the screen
 /** where a slot of round r (0 = the clubs, 1..3 = the winners of the round before) sits: column 0..8, row y */
 function place(r,i){const n=SIZE>>r,half=n/2;if(r>=4)return {x:W/2,y:H*.72};const left=i<half,k=left?i:i-half,N=half;return {x:((left?r:8-r)+.5)*(W/9),y:(k+.5)*(H/N),left}}
-export function treeHtml(T,{clubById}){
+export function treeHtml(T,{clubById,fresh=[]}){
   const my=T.my,cur=T.over?-1:T.round,nameOf=id=>{const c=clubById(id);return c?(c.short||c.name):'?'};
   const view=(r,i)=>slotView(T,r,i);
   let lines='';
@@ -16,8 +16,8 @@ export function treeHtml(T,{clubById}){
       lines+=`<path d="M${xa} ${ya}H${xm}M${xa} ${yb}H${xm}M${xm} ${ya}V${yb}M${xm} ${yt}H${xt}" class="ln${mine?' mine':''}"/>`}}
   let nodes='';
   const node=(r,i)=>{const p=place(r,i),v=view(r,i),c=v.known?clubById(v.id):null,isMe=v.known&&v.id===my,oppSlot=r<=3&&cur===r&&i===((T.meIdx>>r)^1)&&v.known;
-    const cls=['tn',v.known?'on':'q',isMe?'me':'',oppSlot?'opp':'',isMe&&T.over&&T.out!==null&&r===T.out?'lost':''].filter(Boolean).join(' ');
-    return `<button type="button" class="${cls}" style="left:${(p.x/W*100).toFixed(2)}%;top:${(p.y/H*100).toFixed(2)}%" data-r="${r}" data-i="${i}" aria-label="${v.known&&c?esc(c.name):'קבוצה שעוד לא נחשפה'}">${v.known&&c?`<span class="tn-c">${clubCrest(c)}</span>`:'<span class="tn-q">?</span>'}</button>`};
+    const cls=['tn',v.known?'on':'q',v.known&&fresh.includes(r)?'pop':'',isMe?'me':'',oppSlot?'opp':'',isMe&&T.over&&T.out!==null&&r===T.out?'lost':''].filter(Boolean).join(' ');
+    return `<button type="button" class="${cls}" style="left:${(p.x/W*100).toFixed(2)}%;top:${(p.y/H*100).toFixed(2)}%;--k:${i%(SIZE>>(r+1)||1)}" data-r="${r}" data-i="${i}" aria-label="${v.known&&c?esc(c.name):'קבוצה שעוד לא נחשפה'}">${v.known&&c?`<span class="tn-c">${clubCrest(c)}</span>`:'<span class="tn-q">?</span>'}</button>`};
   for(let r=0;r<4;r++)for(let i=0;i<(SIZE>>r);i++){nodes+=node(r,i)}
   const champ=T.over&&T.champion?clubById(T.champion):null;
   const centre=`<div class="tn-final" style="left:50%;top:${(H*.28/H*100).toFixed(1)}%"><b>גמר</b></div><div class="tn-cup" style="left:50%;top:${(H*.5/H*100).toFixed(1)}%" aria-hidden="true">🏆</div>${champ?`<button type="button" class="tn on me champ${T.champion===my?'':' other'}" style="left:50%;top:${(H*.72/H*100).toFixed(1)}%" data-r="4" data-i="0" aria-label="${esc(champ.name)}"><span class="tn-c">${clubCrest(champ)}</span></button>`:''}`;

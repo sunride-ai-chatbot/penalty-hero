@@ -1,6 +1,7 @@
 // The cup against the computer, as a World-Cup tree: sixteen clubs, four rounds (round of 16, quarter, semi, final).
 // Only the player's own duels are played. Every other match of a round is settled by dice when the round is over, and the tree
-// shows nothing in advance: the player sees his own club, and the rest appear round by round, after a win.
+// shows nothing in advance: the player sees his own club, the draw shows every club of the round of 16 (the two outer columns of the
+// tree), and each further column (the winners) appears when the round before it has been played, whether he won it or lost.
 import {makeRng} from './rules.js';
 export const SIZE=16,ROUNDS=4;
 export const ROUND_NAMES=['שמינית גמר','רבע גמר','חצי גמר','גמר'];
@@ -44,9 +45,10 @@ export function settleRound(T,r,{won,mine,theirs}){if(T.over||r!==T.round)return
   return T}
 
 /** what the tree may show. slot (r,i): r=0 the sixteen clubs, r=1..3 the winners of round r-1, r=4 the champion.
- *  { id, known }: known false is a question mark. The player's own club is always known. */
-export function slotView(T,r,i){if(r===0){const id=T.slots[i],mine=i===T.meIdx,opp=i===(T.meIdx^1);
-    return {id,known:T.over||T.round>0||mine||(opp&&T.peek)}}
+ *  { id, known }: known false is a question mark. The player's own club is always known; the draw (T.peek) shows all sixteen, and
+ *  the winners of a round show once that round is over for the player. A lost cup shows the whole tree. */
+export function slotView(T,r,i){if(r===0){const id=T.slots[i],mine=i===T.meIdx;
+    return {id,known:T.over||T.round>0||mine||T.peek}}
   const id=winnerOf(T,r-1,i);return {id,known:!!id&&(T.over||T.round>=r)}}
 /** the result of a match for the list under the tree, or null while it is hidden */
 export function matchView(T,r,m){const x=T.res[r][m];if(!x||!(T.over||T.round>r))return null;const [a,b]=teamsOf(T,r,m);return {a,b,sa:x.sa,sb:x.sb,w:x.w,mine:!!x.mine}}
